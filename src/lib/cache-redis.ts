@@ -60,3 +60,16 @@ export async function setCached<T>(
     // ignore
   }
 }
+
+const FAILED_SCRAPES_SET = "failed-scrapes:v1";
+
+/** Add a course+semester to the set of failed scrape attempts (e.g. limit reached). */
+export async function addFailedScrape(cacheKey: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await client.sadd(FAILED_SCRAPES_SET, cacheKey);
+  } catch {
+    // ignore
+  }
+}

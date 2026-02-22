@@ -9,6 +9,7 @@ import {
   getCached,
   setCached,
   scrapeCacheKey,
+  addFailedScrape,
 } from "@/lib/cache-redis";
 
 export const dynamic = "force-dynamic";
@@ -48,15 +49,16 @@ export async function GET(request: NextRequest) {
     semester = { year, semester: semesterType, delivery };
   }
 
+  const cacheKey = semester
+    ? scrapeCacheKey(
+        trimmedCode,
+        semester.year,
+        semester.semester,
+        semester.delivery
+      )
+    : `scrape:${trimmedCode}`;
+
   try {
-    const cacheKey = semester
-      ? scrapeCacheKey(
-          trimmedCode,
-          semester.year,
-          semester.semester,
-          semester.delivery
-        )
-      : `scrape:${trimmedCode}`;
     const cached = await getCached<Awaited<ReturnType<typeof fetchCourseAssessment>>>(cacheKey);
     if (cached) return NextResponse.json(cached, { status: 200 });
 
@@ -67,6 +69,9 @@ export async function GET(request: NextRequest) {
     const message =
       err instanceof Error ? err.message : "Unknown error scraping course.";
     console.error("[API] Scrape error:", message, err);
+    if (message.includes("reached its limit")) {
+      await addFailedScrape(cacheKey);
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
