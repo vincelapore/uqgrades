@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAvailableDeliveryModes } from "@/lib/delivery-modes";
 import { parseSemesterType } from "@/lib/semester";
+import {
+  getCached,
+  setCached,
+  deliveryCacheKey,
+} from "@/lib/cache-redis";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +37,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const cacheKey = deliveryCacheKey(courseCode, year, semesterType);
+    const cached = await getCached<{ modes: Awaited<ReturnType<typeof fetchAvailableDeliveryModes>> }>(cacheKey);
+    if (cached) return NextResponse.json(cached, { status: 200 });
+
     const modes = await fetchAvailableDeliveryModes(courseCode, year, semesterType);
 
     if (modes.length === 0) {
@@ -43,6 +52,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    await setCached(cacheKey, { modes });
     return NextResponse.json({ modes }, { status: 200 });
   } catch (err) {
     const message =

@@ -5,6 +5,11 @@ import {
   parseDeliveryMode,
   type SemesterSelection,
 } from "@/lib/semester";
+import {
+  getCached,
+  setCached,
+  scrapeCacheKey,
+} from "@/lib/cache-redis";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +49,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const cacheKey = semester
+      ? scrapeCacheKey(
+          trimmedCode,
+          semester.year,
+          semester.semester,
+          semester.delivery
+        )
+      : `scrape:${trimmedCode}`;
+    const cached = await getCached<Awaited<ReturnType<typeof fetchCourseAssessment>>>(cacheKey);
+    if (cached) return NextResponse.json(cached, { status: 200 });
+
     const data = await fetchCourseAssessment(trimmedCode, semester);
+    await setCached(cacheKey, data);
     return NextResponse.json(data, { status: 200 });
   } catch (err) {
     const message =
