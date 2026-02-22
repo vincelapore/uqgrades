@@ -115,32 +115,59 @@ function HomeContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when popup/events change, not on selection toggle
     }, [calendarPopup, calendarPopupEvents]);
 
-    // Hydrate from URL on first load
+    const STORAGE_KEY = "uqgrades-state";
+
+    // Hydrate on first load: shared link (URL) overrides, otherwise use localStorage
     useEffect(() => {
         if (isHydrated) return;
-        const encoded = searchParams.get("data");
-        const decoded = decodeState(encoded);
-        if (decoded) {
-            setState(decoded);
-            if (decoded.defaultSemester) {
+        const encodedFromUrl = searchParams.get("data");
+        const fromUrl = decodeState(encodedFromUrl);
+        if (fromUrl?.courses?.length) {
+            setState(fromUrl);
+            if (fromUrl.defaultSemester) {
                 setSemester({
-                    year: decoded.defaultSemester.year,
-                    semester: decoded.defaultSemester.semester
+                    year: fromUrl.defaultSemester.year,
+                    semester: fromUrl.defaultSemester.semester
                 });
+            }
+        } else {
+            try {
+                const stored =
+                    typeof window !== "undefined"
+                        ? window.localStorage.getItem(STORAGE_KEY)
+                        : null;
+                const decoded = decodeState(stored);
+                if (decoded) {
+                    setState(decoded);
+                    if (decoded.defaultSemester) {
+                        setSemester({
+                            year: decoded.defaultSemester.year,
+                            semester: decoded.defaultSemester.semester
+                        });
+                    }
+                }
+            } catch {
+                // ignore localStorage errors
             }
         }
         setIsHydrated(true);
     }, [searchParams, isHydrated]);
 
-    // Keep URL in sync with state (debounced to avoid heavy encode on every keystroke)
-    const URL_SYNC_DEBOUNCE_MS = 400;
+    // Persist to localStorage (debounced)
+    const STORAGE_DEBOUNCE_MS = 400;
     useEffect(() => {
         if (!isHydrated) return;
         const id = window.setTimeout(() => {
-            const encoded = encodeState(stateRef.current);
-            const url = encoded ? `/?data=${encoded}` : "/";
-            window.history.replaceState({}, "", url);
-        }, URL_SYNC_DEBOUNCE_MS);
+            try {
+                const encoded = encodeState(stateRef.current);
+                if (typeof window !== "undefined" && window.localStorage) {
+                    if (encoded) window.localStorage.setItem(STORAGE_KEY, encoded);
+                    else window.localStorage.removeItem(STORAGE_KEY);
+                }
+            } catch {
+                // ignore
+            }
+        }, STORAGE_DEBOUNCE_MS);
         return () => window.clearTimeout(id);
     }, [state, isHydrated]);
 
@@ -293,11 +320,15 @@ function HomeContent() {
 
     const copyLink = useCallback(async () => {
         try {
-            await navigator.clipboard.writeText(window.location.href);
+            const encoded = encodeState(stateRef.current);
+            const url = encoded
+                ? `${window.location.origin}/?data=${encoded}`
+                : window.location.origin + "/";
+            await navigator.clipboard.writeText(url);
             setLinkCopied(true);
             setTimeout(() => setLinkCopied(false), 2000);
         } catch {
-            setError("Could not copy link. You can still bookmark this page.");
+            setError("Could not copy link.");
         }
     }, []);
 
@@ -308,6 +339,13 @@ function HomeContent() {
         setSemester({ year: current.year, semester: current.semester });
         setShowResetConfirm(false);
         setError(null);
+        try {
+            if (typeof window !== "undefined" && window.localStorage) {
+                window.localStorage.removeItem(STORAGE_KEY);
+            }
+        } catch {
+            // ignore
+        }
     }, []);
 
     const dashboardSummary = useMemo(() => {
@@ -372,35 +410,19 @@ function HomeContent() {
             <main className='mx-auto flex min-h-screen max-w-6xl flex-col gap-10 px-4 pb-20 pt-12 sm:px-6 lg:px-8'>
                 <header className='flex flex-col gap-5 border-b border-slate-800/50 pb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
                     <div className='relative min-w-0'>
-                        <div className='flex items-center gap-2'>
-                            <h1 className='text-2xl font-bold tracking-tight text-slate-50 sm:text-4xl'>
-                                UQ Grades
-                            </h1>
-                            <button
-                                type='button'
-                                onClick={() => setHowToOpen((o) => !o)}
-                                aria-label='How to use'
-                                className='shrink-0 text-slate-400 transition-colors hover:text-slate-200 focus:outline-none focus:ring-0'
-                            >
-                                <svg
-                                    className='h-5 w-5'
-                                    fill='none'
-                                    stroke='currentColor'
-                                    viewBox='0 0 24 24'
-                                    aria-hidden
-                                >
-                                    <path
-                                        strokeLinecap='round'
-                                        strokeLinejoin='round'
-                                        strokeWidth={2}
-                                        d='M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-                                    />
-                                </svg>
-                            </button>
-                        </div>
+                        <h1 className='text-2xl font-bold tracking-tight text-slate-50 sm:text-4xl'>
+                            UQ Grades
+                        </h1>
                         <p className='mt-1 text-sm text-slate-400 max-w-md'>
                             Track your sem progress, calculate grades, and see
-                            what you need to hit that 7 (or 4).
+                            what you need to hit that 7 (or 4).{" "}
+                            <button
+                                type='button'
+                                onClick={() => setHowToOpen(true)}
+                                className='text-slate-400 underline underline-offset-2 transition-colors hover:text-slate-200'
+                            >
+                                How to use
+                            </button>
                         </p>
                         {howToOpen && (
                             <div
@@ -500,11 +522,11 @@ function HomeContent() {
                                                     4. Save or share
                                                 </p>
                                                 <p className='mt-1 text-slate-300'>
-                                                    Use Copy link to bookmark
-                                                    your progress or share it;
-                                                    the URL contains all your
-                                                    info. Save it with every
-                                                    change!
+                                                    Your progress is saved
+                                                    automatically in this
+                                                    browser. Use Copy link to
+                                                    share your grades with
+                                                    someone else.
                                                 </p>
                                             </div>
                                             <div>
