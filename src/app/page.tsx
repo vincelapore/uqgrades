@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    Suspense,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
 import { useSearchParams } from "next/navigation";
 import {
     calculateRequiredMarkForTarget,
@@ -43,6 +50,9 @@ function HomeContent() {
     const [state, setState] = useState<AppState>({ courses: [] });
     const [isHydrated, setIsHydrated] = useState(false);
     const [loadingCourse, setLoadingCourse] = useState(false);
+    const [loadingCourseForDelivery, setLoadingCourseForDelivery] = useState<
+        "Internal" | "External" | null
+    >(null);
     const [loadingDeliveryModes, setLoadingDeliveryModes] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [courseInput, setCourseInput] = useState("");
@@ -161,7 +171,8 @@ function HomeContent() {
             try {
                 const encoded = encodeState(stateRef.current);
                 if (typeof window !== "undefined" && window.localStorage) {
-                    if (encoded) window.localStorage.setItem(STORAGE_KEY, encoded);
+                    if (encoded)
+                        window.localStorage.setItem(STORAGE_KEY, encoded);
                     else window.localStorage.removeItem(STORAGE_KEY);
                 }
             } catch {
@@ -219,6 +230,7 @@ function HomeContent() {
             if (!pendingCourse) return;
             setError(null);
             setLoadingCourse(true);
+            setLoadingCourseForDelivery(deliveryMode.delivery);
             try {
                 const params = new URLSearchParams({
                     courseCode: pendingCourse.courseCode,
@@ -259,6 +271,7 @@ function HomeContent() {
                 );
             } finally {
                 setLoadingCourse(false);
+                setLoadingCourseForDelivery(null);
             }
         },
         [pendingCourse]
@@ -706,9 +719,19 @@ function HomeContent() {
                                         onClick={() =>
                                             void findDeliveryModes(courseInput)
                                         }
-                                        className='inline-flex w-full min-w-0 shrink-0 items-center justify-center rounded-lg bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 transition-all hover:from-sky-400 hover:to-cyan-400 hover:shadow-xl hover:shadow-sky-500/30 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:shadow-none sm:w-auto sm:min-w-[90px]'
+                                        className='inline-flex w-full min-w-0 shrink-0 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 transition-all hover:from-sky-400 hover:to-cyan-400 hover:shadow-xl hover:shadow-sky-500/30 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:shadow-none sm:w-auto sm:min-w-[90px]'
                                     >
-                                        {loadingDeliveryModes ? "..." : "Find"}
+                                        {loadingDeliveryModes ? (
+                                            <>
+                                                <span
+                                                    className='h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white'
+                                                    aria-hidden
+                                                />
+                                                Finding…
+                                            </>
+                                        ) : (
+                                            "Find"
+                                        )}
                                     </button>
                                 </div>
                             </>
@@ -726,25 +749,41 @@ function HomeContent() {
                                 </div>
                                 <div className='space-y-2'>
                                     {pendingCourse.deliveryModes.map(
-                                        (mode, idx) => (
-                                            <button
-                                                key={idx}
-                                                disabled={loadingCourse}
-                                                onClick={() =>
-                                                    void addCourse(mode)
-                                                }
-                                                className='w-full rounded-lg border border-slate-700/50 bg-slate-950/50 px-4 py-3 text-left text-sm font-medium text-slate-300 backdrop-blur-sm transition-all hover:border-sky-500/50 hover:bg-sky-500/10 hover:text-sky-300 disabled:cursor-not-allowed disabled:opacity-50'
-                                            >
-                                                <div className='flex items-center justify-between'>
-                                                    <span>{mode.delivery}</span>
-                                                    {mode.location && (
-                                                        <span className='text-xs text-slate-500'>
-                                                            {mode.location}
+                                        (mode, idx) => {
+                                            const isLoading =
+                                                loadingCourse &&
+                                                loadingCourseForDelivery ===
+                                                    mode.delivery;
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    disabled={loadingCourse}
+                                                    onClick={() =>
+                                                        void addCourse(mode)
+                                                    }
+                                                    className='w-full rounded-lg border border-slate-700/50 bg-slate-950/50 px-4 py-3 text-left text-sm font-medium text-slate-300 backdrop-blur-sm transition-all hover:border-sky-500/50 hover:bg-sky-500/10 hover:text-sky-300 disabled:cursor-not-allowed disabled:opacity-50'
+                                                >
+                                                    <div className='flex items-center justify-between gap-2'>
+                                                        <span className='flex min-w-0 items-center gap-2'>
+                                                            {isLoading && (
+                                                                <span
+                                                                    className='h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-500 border-t-sky-400'
+                                                                    aria-hidden
+                                                                />
+                                                            )}
+                                                            <span>
+                                                                {mode.delivery}
+                                                            </span>
                                                         </span>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        )
+                                                        {mode.location && (
+                                                            <span className='shrink-0 text-xs text-slate-500'>
+                                                                {mode.location}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        }
                                     )}
                                 </div>
                                 <button
@@ -1373,7 +1412,9 @@ function HomeContent() {
                         Not affiliated with UQ. All data is scraped from UQ
                         course profiles. Please verify information on the
                         official UQ website. This tool is for convenience only
-                        and may contain errors.
+                        and may contain errors. UQ Grades is not responsible for
+                        your grade missed hurdles, missed deadlines, or missed
+                        birthday parties.
                     </p>
                     <p className='text-xs text-slate-500'>
                         <a
