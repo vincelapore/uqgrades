@@ -29,6 +29,11 @@ export async function fetchUqHtml(url: string): Promise<string> {
   });
 
   if (!res.ok) {
+    if (res.status === 429 || res.status === 403) {
+      throw new Error(
+        "Unfortunately UQ Grades has reached its limit. Please try again tomorrow."
+      );
+    }
     throw new Error(`Failed to fetch ${url} (${res.status})`);
   }
 
