@@ -1413,8 +1413,8 @@ function HomeContent() {
                         course profiles. Please verify information on the
                         official UQ website. This tool is for convenience only
                         and may contain errors. UQ Grades is not responsible for
-                        your grade missed hurdles, missed deadlines, or missed
-                        birthday parties.
+                        your grades, missed hurdles and deadlines, or that
+                        Netflix binge two days before the final.
                     </p>
                     <p className='text-xs text-slate-500'>
                         <a
