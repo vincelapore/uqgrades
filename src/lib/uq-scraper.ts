@@ -1,5 +1,10 @@
 import * as cheerio from "cheerio";
+import type { AnyNode, Element } from "domhandler";
 import type { SemesterSelection } from "./semester";
+
+type CheerioElement = cheerio.Cheerio<Element>;
+/** Used for variables that receive $() results (which may be AnyNode). */
+type CheerioAny = cheerio.Cheerio<AnyNode>;
 
 export type AssessmentItem = {
   name: string;
@@ -95,7 +100,7 @@ export async function fetchCourseAssessment(
   console.log("[Scraper] Archived table found:", archivedTable.length > 0);
   
   // Helper function to search a table for matching semester
-  const searchTableForSemester = (table: cheerio.Cheerio): boolean => {
+  const searchTableForSemester = (table: CheerioElement): boolean => {
     if (!table || !table.length) return false;
     
     console.log("[Scraper] Searching offerings table for matching semester...");
@@ -205,15 +210,17 @@ export async function fetchCourseAssessment(
   }
 
   // If we found a course profile link, follow it; otherwise, try to find assessment table on current page
+  // (TS doesn't narrow courseProfileLink here because it's assigned in a callback; after the throws above it is string)
   let assessmentHTML = html;
-  if (courseProfileLink && courseProfileLink !== url && !courseProfileLink.endsWith("#")) {
+  const profileLink = courseProfileLink as unknown as string;
+  if (profileLink !== url && !profileLink.endsWith("#")) {
     try {
       console.log("[Scraper] Following course profile link...");
-      assessmentHTML = await fetchHTML(courseProfileLink);
+      assessmentHTML = await fetchHTML(profileLink);
       console.log("[Scraper] Successfully fetched course profile page");
 
       // Archive course profiles use section_1 for the main link; assessment is in section_5
-      const archiveSection1Match = courseProfileLink.match(
+      const archiveSection1Match = profileLink.match(
         /^https?:\/\/archive\.course-profiles\.uq\.edu\.au\/student_section_loader\/section_1\/(\d+)(?:\/|\?|$)/i
       );
       if (archiveSection1Match) {
@@ -233,7 +240,7 @@ export async function fetchCourseAssessment(
     }
   }
 
-  const $assessment = courseProfileLink && courseProfileLink !== url && !courseProfileLink.endsWith("#")
+  const $assessment = profileLink !== url && !profileLink.endsWith("#")
     ? cheerio.load(assessmentHTML)
     : $;
   console.log("[Scraper] Searching for assessment table...");
@@ -243,7 +250,7 @@ export async function fetchCourseAssessment(
   // 1. Find a heading containing "Assessment"
   // 2. Grab the nearest table that follows it
   // 3. Also check for tabs/sections that might contain assessment
-  let assessmentTable: cheerio.Cheerio | null = null;
+  let assessmentTable: CheerioElement | null = null;
 
   const headings: string[] = [];
   $assessment("h1, h2, h3, h4, h5").each((_, el) => {
@@ -278,7 +285,8 @@ export async function fetchCourseAssessment(
   }).get();
   console.log("[Scraper] Found tabs/buttons:", tabLinks.filter(t => t.text.includes("assessment") || t.href.includes("assessment")).slice(0, 5));
 
-  if (!assessmentTable || !assessmentTable.length) {
+  const assessmentTableRef = assessmentTable as CheerioElement | null;
+  if (!assessmentTableRef || !assessmentTableRef.length) {
     console.log("[Scraper] Trying fallback: searching all tables");
     const tableCount = $assessment("table").length;
     console.log("[Scraper] Total tables found:", tableCount);
@@ -320,7 +328,7 @@ export async function fetchCourseAssessment(
     });
   }
 
-  if (!assessmentTable || !assessmentTable.length) {
+  if (!assessmentTableRef || !assessmentTableRef.length) {
     console.error("[Scraper] ERROR: Could not locate assessment table");
     console.error("[Scraper] Page HTML sample:", assessmentHTML.substring(0, 2000));
     console.error("[Scraper] All table structures:");
@@ -330,18 +338,19 @@ export async function fetchCourseAssessment(
     });
     throw new Error("Could not locate assessment table for this course. The course profile may not have assessment information available, or the page structure may have changed.");
   }
+  const tableToUse = assessmentTable as unknown as CheerioElement;
   console.log("[Scraper] Assessment table found, parsing rows...");
 
   // First, identify column indices by looking at table headers
   let assessmentTaskColumnIndex: number | null = null;
   let weightColumnIndex: number | null = null;
   let dueDateColumnIndex: number | null = null;
-  
+
   // Look for header row (thead tr or first tr with th elements)
-  const headerRow = assessmentTable.find("thead tr").first();
-  const headerCells = headerRow.length > 0 
+  const headerRow = tableToUse.find("thead tr").first();
+  const headerCells = headerRow.length > 0
     ? headerRow.find("th, td")
-    : assessmentTable.find("tr").first().find("th, td");
+    : tableToUse.find("tr").first().find("th, td");
   
   if (headerCells.length > 0) {
     console.log("[Scraper] Found header row with", headerCells.length, "columns");
@@ -368,7 +377,7 @@ export async function fetchCourseAssessment(
   }
 
   const items: AssessmentItem[] = [];
-  const rows = assessmentTable.find("tbody tr");
+  const rows = tableToUse.find("tbody tr");
   console.log("[Scraper] Found", rows.length, "table rows");
 
   rows
@@ -512,7 +521,7 @@ export async function fetchCourseAssessment(
         }
       }
 
-      if (!name || (weight === 0 && weight !== "pass/fail")) {
+      if (!name || (typeof weight === "number" && weight === 0)) {
         console.log("[Scraper] Skipping row - missing name or weight:", { name, weight });
         return;
       }
@@ -540,7 +549,7 @@ export async function fetchCourseAssessment(
     const elementWithId = $assessment(`#${detailId}, [id="${detailId}"]`).first();
     
     // Find the h3 heading for this assessment detail section
-    let h3Heading: cheerio.Cheerio | null = null;
+    let h3Heading: CheerioAny | null = null;
     
     if (elementWithId.length > 0) {
       console.log(`[Scraper] Found element with ID #${detailId} for item ${index}: "${item.name}"`);
@@ -580,10 +589,10 @@ export async function fetchCourseAssessment(
     if (h3Heading && h3Heading.length > 0) {
       console.log(`[Scraper] Searching for hurdle requirements after h3: "${h3Heading.text().trim()}"`);
       
-      let hurdleHeading: cheerio.Cheerio | null = null;
+      let hurdleHeading: CheerioAny | null = null;
       
       h3Heading.nextAll().each((_, el) => {
-        const tagName = (el as cheerio.Element).tagName?.toLowerCase();
+        const tagName = (el as Element).tagName?.toLowerCase();
         const id = $assessment(el).attr("id") || "";
         
         // Stop if we hit another assessment detail section
@@ -609,27 +618,29 @@ export async function fetchCourseAssessment(
         return undefined;
       });
       
-      // Extract text after the hurdle heading
-      if (hurdleHeading && hurdleHeading.length > 0) {
+      // Extract text after the hurdle heading (ref so TS accepts use after .each assignment)
+      const hurdleRef = hurdleHeading as CheerioAny | null;
+      if (hurdleRef && hurdleRef.length > 0) {
         // Find the next h4 heading to know where to stop
-        let nextH4: cheerio.Cheerio | null = null;
-        hurdleHeading.nextAll("h4").each((_, el) => {
+        let nextH4: CheerioAny | null = null;
+        hurdleRef.nextAll("h4").each((_, el) => {
           nextH4 = $assessment(el);
           return false; // Stop at first h4
         });
-        
+        const nextH4Ref = nextH4 as CheerioAny | null;
+
         // Collect text from elements between the hurdle h4 and the next h4
         const hurdleTextParts: string[] = [];
-        
-        if (nextH4 && nextH4.length > 0) {
+
+        if (nextH4Ref && nextH4Ref.length > 0) {
           // We have a next h4, so collect text only between these two headings
-          hurdleHeading.nextAll().each((_, contentEl) => {
+          hurdleRef.nextAll().each((_, contentEl) => {
             // Stop when we reach the next h4
-            if ($assessment(contentEl).is(nextH4!)) {
+            if ($assessment(contentEl).is(nextH4Ref)) {
               return false;
             }
             
-            const contentTag = (contentEl as cheerio.Element).tagName?.toLowerCase();
+            const contentTag = (contentEl as Element).tagName?.toLowerCase();
             // Skip headings
             if (contentTag === "h2" || contentTag === "h3" || contentTag === "h4" || contentTag === "h5") {
               return undefined;
@@ -644,8 +655,8 @@ export async function fetchCourseAssessment(
           });
         } else {
           // No next h4 found, collect until next h3 or end
-          hurdleHeading.nextAll().each((_, contentEl) => {
-            const contentTag = (contentEl as cheerio.Element).tagName?.toLowerCase();
+          hurdleRef.nextAll().each((_, contentEl) => {
+            const contentTag = (contentEl as Element).tagName?.toLowerCase();
             
             // Stop at any heading
             if (contentTag === "h2" || contentTag === "h3" || contentTag === "h4" || contentTag === "h5") {
@@ -664,9 +675,9 @@ export async function fetchCourseAssessment(
         // If we still don't have text, try getting it from the parent (text node case)
         if (hurdleTextParts.length === 0) {
           // Get the HTML content between the h4 and next h4 to extract text nodes
-          const parent = hurdleHeading.parent();
+          const parent = hurdleRef.parent();
           const parentHTML = parent.html() || "";
-          const headingHTML = hurdleHeading.html() || "";
+          const headingHTML = hurdleRef.html() || "";
           
           if (parentHTML.includes(headingHTML)) {
             const headingIndex = parentHTML.indexOf(headingHTML);
@@ -728,7 +739,7 @@ export async function fetchCourseAssessment(
   });
   if (!items.length) {
     console.error("[Scraper] ERROR: No items parsed from table");
-    console.error("[Scraper] Table HTML sample:", assessmentTable.html()?.substring(0, 1000));
+    console.error("[Scraper] Table HTML sample:", tableToUse.html()?.substring(0, 1000));
     throw new Error("Assessment table found but no rows could be parsed.");
   }
 
@@ -791,7 +802,7 @@ export async function fetchCourseAssessment(
       let foundHurdleContent = false;
       
       $assessment(el).nextAll().each((_, nextEl) => {
-        const tagName = (nextEl as cheerio.Element).tagName?.toLowerCase();
+        const tagName = (nextEl as Element).tagName?.toLowerCase();
         // Stop at next major heading (h1, h2, h3) or next section
         if (tagName === "h1" || tagName === "h2" || tagName === "h3") {
           return false;

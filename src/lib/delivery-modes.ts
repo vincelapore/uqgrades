@@ -40,8 +40,8 @@ export async function fetchAvailableDeliveryModes(
   // Find both current and archived offerings tables by ID
   const currentTable = $("#course-current-offerings");
   const archivedTable = $("#course-archived-offerings");
-  
-  const tables: cheerio.Cheerio[] = [];
+
+  const tables: ReturnType<typeof $>[] = [];
   if (currentTable.length) {
     tables.push(currentTable);
     console.log("[DeliveryModes] Found current offerings table");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
     calculateRequiredMarkForTarget,
@@ -37,7 +37,7 @@ import {
 
 const DEFAULT_GOAL: GradeBand = 7;
 
-export default function Home() {
+function HomeContent() {
     const searchParams = useSearchParams();
 
     const [state, setState] = useState<AppState>({ courses: [] });
@@ -1727,5 +1727,19 @@ export default function Home() {
                     );
                 })()}
         </div>
+    );
+}
+
+export default function Home() {
+    return (
+        <Suspense
+            fallback={
+                <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-400'>
+                    Loading...
+                </div>
+            }
+        >
+            <HomeContent />
+        </Suspense>
     );
 }
