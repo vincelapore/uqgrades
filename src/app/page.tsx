@@ -1355,7 +1355,7 @@ function HomeContent() {
                     </p>
                     <p className='text-xs text-slate-500'>
                         <a
-                            href='mailto:vincemlapore@gmail.com'
+                            href='mailto:vincemlapore@gmail.com?subject=UQ%20Grades%20(uqgrades.com)'
                             className='text-slate-400 hover:text-slate-300 underline underline-offset-2'
                         >
                             Report bugs, compliments, or feature ideas

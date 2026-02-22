@@ -15,6 +15,10 @@ export const metadata: Metadata = {
     metadataBase: new URL(
         process.env.NEXT_PUBLIC_APP_URL ?? "https://uqgrades.com"
     ),
+    icons: {
+        icon: "/icon.png",
+        apple: "/apple-touch-icon.png",
+    },
     openGraph: {
         title: "UQ Grades | Track Your Semester Progress",
         description:
