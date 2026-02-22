@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import type { AnyNode, Element } from "domhandler";
+import { fetchUqHtml } from "./fetch-uq";
 import type { SemesterSelection } from "./semester";
 
 type CheerioElement = cheerio.Cheerio<Element>;
@@ -26,19 +27,9 @@ export type CourseAssessment = {
 
 const UQ_COURSE_URL = "https://programs-courses.uq.edu.au/course.html";
 
-const DEFAULT_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (compatible; uqgrades-bot/1.0; +https://uqgrades.com)",
-};
-
 async function fetchHTML(url: string): Promise<string> {
   console.log("[Scraper] Fetching URL:", url);
-  const res = await fetch(url, { headers: DEFAULT_HEADERS });
-  console.log("[Scraper] Response status:", res.status, res.statusText);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch ${url} (${res.status})`);
-  }
-  const html = await res.text();
+  const html = await fetchUqHtml(url);
   console.log("[Scraper] HTML length:", html.length, "characters");
   return html;
 }

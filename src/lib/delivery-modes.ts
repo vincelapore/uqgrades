@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { fetchUqHtml } from "./fetch-uq";
 import type { SemesterSelection } from "./semester";
 
 const UQ_COURSE_URL = "https://programs-courses.uq.edu.au/course.html";
@@ -11,16 +12,7 @@ export type DeliveryModeOption = {
 
 async function fetchHTML(url: string): Promise<string> {
   console.log("[DeliveryModes] Fetching URL:", url);
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; uqgrades-bot/1.0; +https://uqgrades.com)",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
-  }
-  return response.text();
+  return fetchUqHtml(url);
 }
 
 export async function fetchAvailableDeliveryModes(

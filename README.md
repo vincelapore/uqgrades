@@ -34,3 +34,11 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Enabling on-demand fetch on Vercel
+
+UQ may block requests from Vercel’s IPs. To allow the app to fetch course data on demand in production, set a proxy API key in Vercel:
+
+1. Get an API key from [ScraperAPI](https://www.scraperapi.com) (free tier: 1000 requests/month).
+2. In Vercel: **Project → Settings → Environment Variables** add `SCRAPER_API_KEY` with that value (e.g. for Production).
+3. Redeploy. All UQ requests will go through ScraperAPI so they are not blocked.
