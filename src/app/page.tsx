@@ -77,6 +77,10 @@ function HomeContent() {
     const [calendarEventSelection, setCalendarEventSelection] = useState<
         boolean[]
     >([]);
+    const [hurdlePopup, setHurdlePopup] = useState<{
+        courseIdx: number;
+        itemIdx: number;
+    } | null>(null);
 
     const stateRef = useRef(state);
     stateRef.current = state;
@@ -1174,10 +1178,27 @@ function HomeContent() {
                                                         className='hover:bg-slate-900/70'
                                                     >
                                                         <td className='px-4 py-3 align-middle'>
-                                                            <div className='flex items-center gap-2 max-w-xs'>
+                                                            <div className='flex items-center gap-2 max-w-xs flex-wrap'>
                                                                 <div className='text-sm font-semibold text-slate-100'>
                                                                     {item.name}
                                                                 </div>
+                                                                {(item.isHurdle ||
+                                                                    item.hurdleRequirements ||
+                                                                    item.hurdleThreshold != null) && (
+                                                                    <button
+                                                                        type='button'
+                                                                        onClick={() =>
+                                                                            setHurdlePopup({
+                                                                                courseIdx: idx,
+                                                                                itemIdx: i
+                                                                            })
+                                                                        }
+                                                                        className='inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-400 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20'
+                                                                        title='Hurdle requirement'
+                                                                    >
+                                                                        Hurdle
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </td>
                                                         <td className='px-4 py-3 text-right align-middle'>
@@ -1783,6 +1804,110 @@ function HomeContent() {
                                                     )}
                                             </button>
                                         </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
+            {/* Hurdle info popup */}
+            {hurdlePopup != null &&
+                (() => {
+                    const course = state.courses[hurdlePopup.courseIdx];
+                    if (!course) return null;
+                    const item =
+                        course.course.items[hurdlePopup.itemIdx];
+                    if (!item) return null;
+                    const hurdleText =
+                        item.hurdleRequirements ||
+                        course.course.hurdleInformation ||
+                        null;
+                    const threshold =
+                        item.hurdleThreshold != null
+                            ? `Pass threshold: ${item.hurdleThreshold}%`
+                            : null;
+
+                    return (
+                        <div
+                            className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4'
+                            onClick={() => setHurdlePopup(null)}
+                        >
+                            <div
+                                className='relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-800/50 bg-gradient-to-br from-slate-900/95 via-slate-950/95 to-slate-900/95 p-6 shadow-2xl backdrop-blur-xl'
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <button
+                                    onClick={() => setHurdlePopup(null)}
+                                    className='absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 transition-all hover:bg-slate-800/50 hover:text-slate-200'
+                                    aria-label='Close'
+                                >
+                                    <svg
+                                        className='h-5 w-5'
+                                        fill='none'
+                                        stroke='currentColor'
+                                        viewBox='0 0 24 24'
+                                    >
+                                        <path
+                                            strokeLinecap='round'
+                                            strokeLinejoin='round'
+                                            strokeWidth={2}
+                                            d='M6 18L18 6M6 6l12 12'
+                                        />
+                                    </svg>
+                                </button>
+                                <div className='space-y-4 pr-8'>
+                                    <div>
+                                        <span className='inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400'>
+                                            Hurdle
+                                        </span>
+                                        <h2 className='mt-2 text-lg font-bold tracking-tight text-slate-50'>
+                                            {item.name}
+                                        </h2>
+                                        <p className='text-sm text-slate-400'>
+                                            {course.course.courseCode}
+                                        </p>
+                                    </div>
+                                    {threshold && (
+                                        <p className='text-sm font-medium text-amber-300/90'>
+                                            {threshold}
+                                        </p>
+                                    )}
+                                    {hurdleText && (
+                                        <div className='rounded-xl border border-slate-800/50 bg-slate-900/30 p-4'>
+                                            <p className='whitespace-pre-wrap text-sm text-slate-300'>
+                                                {hurdleText}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {!hurdleText && !threshold && (
+                                        <p className='text-sm text-slate-500'>
+                                            No hurdle details available for this
+                                            item.
+                                        </p>
+                                    )}
+                                    {course.course.courseProfileUrl && (
+                                        <a
+                                            href={`${course.course.courseProfileUrl}#assessment`}
+                                            target='_blank'
+                                            rel='noopener noreferrer'
+                                            className='inline-flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-950/50 px-4 py-2 text-sm font-medium text-sky-400 transition-all hover:border-sky-500/50 hover:bg-sky-500/10 hover:text-sky-300'
+                                        >
+                                            <svg
+                                                className='h-4 w-4'
+                                                fill='none'
+                                                stroke='currentColor'
+                                                viewBox='0 0 24 24'
+                                            >
+                                                <path
+                                                    strokeLinecap='round'
+                                                    strokeLinejoin='round'
+                                                    strokeWidth={2}
+                                                    d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+                                                />
+                                            </svg>
+                                            View course profile
+                                        </a>
                                     )}
                                 </div>
                             </div>

@@ -336,6 +336,7 @@ export async function fetchCourseAssessment(
   let assessmentTaskColumnIndex: number | null = null;
   let weightColumnIndex: number | null = null;
   let dueDateColumnIndex: number | null = null;
+  let hurdleColumnIndex: number | null = null;
 
   // Look for header row (thead tr or first tr with th elements)
   const headerRow = tableToUse.find("thead tr").first();
@@ -358,6 +359,9 @@ export async function fetchCourseAssessment(
       } else if (headerText.includes("due") || headerText.includes("date")) {
         dueDateColumnIndex = index;
         console.log(`[Scraper] Found "Due date" column at index ${index}`);
+      } else if (headerText.includes("hurdle")) {
+        hurdleColumnIndex = index;
+        console.log(`[Scraper] Found "Hurdle" column at index ${index}`);
       }
     });
   }
@@ -459,21 +463,39 @@ export async function fetchCourseAssessment(
       }
 
       // Check for hurdle indicators
-      // Look in text cells for "hurdle" or "a hurdle"
-      let isHurdle = textCells.some((t) => 
-        /hurdle|a hurdle/i.test(t)
-      );
-      
-      // Also check for visual indicators (icons, images) that might indicate hurdles
-      // Some course profiles use icons or images to mark hurdles
+      // 1. Explicit "Hurdle" column (UQ course profiles often have a Hurdle column with Yes/icon)
+      let isHurdle = false;
+      if (hurdleColumnIndex !== null && hurdleColumnIndex < cellCount) {
+        const hurdleCell = cells.eq(hurdleColumnIndex);
+        const hurdleCellText = hurdleCell.text().toLowerCase().trim();
+        if (/^(yes|y|true|✓|✔|×|hurdle)\s*$/.test(hurdleCellText) || hurdleCellText.startsWith("yes") || hurdleCellText.includes("hurdle")) {
+          isHurdle = true;
+          console.log("[Scraper] Found hurdle from Hurdle column:", hurdleCellText);
+        }
+        if (!isHurdle) {
+          hurdleCell.find("img, svg, [class*='icon']").each((_, el) => {
+            const alt = $assessment(el).attr("alt") || $assessment(el).attr("title") || "";
+            const className = $assessment(el).attr("class") || "";
+            if (/hurdle|yes|check|tick/i.test(alt) || /hurdle|yes|check|tick/i.test(className)) {
+              isHurdle = true;
+              console.log("[Scraper] Found hurdle from Hurdle column icon");
+              return false;
+            }
+            return undefined;
+          });
+        }
+      }
+      // 2. Look in any cell text for "hurdle" or "a hurdle"
       if (!isHurdle) {
-        const rowHTML = $(row).html() || "";
-        // Look for common patterns: warning icons, hurdle-related alt text, etc.
+        isHurdle = textCells.some((t) => /hurdle|a hurdle/i.test(t));
+      }
+      // 3. Visual indicators (icons, images) anywhere in the row
+      if (!isHurdle) {
+        const rowHTML = $assessment(row).html() || "";
         if (/hurdle|warning|alert/i.test(rowHTML)) {
-          // Check if there are images/icons with hurdle-related alt text or titles
-          $(row).find("img, svg, [class*='icon'], [class*='warning']").each((_, el) => {
-            const alt = $(el).attr("alt") || $(el).attr("title") || "";
-            const className = $(el).attr("class") || "";
+          $assessment(row).find("img, svg, [class*='icon'], [class*='warning']").each((_, el) => {
+            const alt = $assessment(el).attr("alt") || $assessment(el).attr("title") || "";
+            const className = $assessment(el).attr("class") || "";
             if (/hurdle/i.test(alt) || /hurdle/i.test(className)) {
               isHurdle = true;
               console.log("[Scraper] Found hurdle indicator via icon/image");
