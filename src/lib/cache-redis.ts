@@ -63,6 +63,43 @@ export async function setCached<T>(
 
 const FAILED_SCRAPES_SET = "failed-scrapes:v1";
 
+/** Parse a scrape cache key into courseCode and optional semester. Returns null if key format is invalid. */
+export function parseScrapeCacheKey(
+  key: string
+): { courseCode: string; year?: number; semester?: string; delivery?: string } | null {
+  if (!key.startsWith("scrape:")) return null;
+  const parts = key.split(":");
+  if (parts.length === 2) {
+    return { courseCode: parts[1] };
+  }
+  if (parts.length >= 5) {
+    const year = parseInt(parts[2], 10);
+    if (Number.isNaN(year)) return null;
+    const semesterNorm = parts[3];
+    const delivery = parts[4];
+    const semester = semesterNorm.replace(/_/g, " ");
+    return {
+      courseCode: parts[1],
+      year,
+      semester,
+      delivery,
+    };
+  }
+  return null;
+}
+
+/** List all Redis keys that are scrape cache entries. */
+export async function listScrapeCacheKeys(): Promise<string[]> {
+  const client = getRedis();
+  if (!client) return [];
+  try {
+    const all = await client.keys("scrape:*");
+    return Array.isArray(all) ? all : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Add a course+semester to the set of failed scrape attempts (e.g. limit reached). */
 export async function addFailedScrape(cacheKey: string): Promise<void> {
   const client = getRedis();

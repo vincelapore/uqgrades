@@ -6,8 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
-  },
+"lint": "eslint",
+    "backfill": "tsx scripts/backfill-scrape-cache.ts"
+},
   "dependencies": {
     "@upstash/redis": "^1.36.2",
     "@vercel/analytics": "^1.6.1",
@@ -23,6 +24,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
+    "tsx": "^4.19.2",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5"
