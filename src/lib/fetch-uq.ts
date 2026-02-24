@@ -2,6 +2,10 @@
  * Fetches HTML from UQ (or any URL). When SCRAPER_API_KEY is set (e.g. on Vercel),
  * requests go through ScraperAPI so they are not blocked by UQ's IP restrictions.
  *
+ * IMPORTANT: When SCRAPER_API_KEY is set, this burns 1 credit per call. It must only
+ * be called from code paths that have already checked Redis cache: GET /api/scrape
+ * and GET /api/delivery-modes. Do not call from new routes without cache-first logic.
+ *
  * Set SCRAPER_API_KEY in Vercel → Project → Settings → Environment Variables.
  * Get a key at https://www.scraperapi.com (free tier: 1000 requests/month).
  */

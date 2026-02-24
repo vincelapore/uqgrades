@@ -4,7 +4,8 @@ import { parseSemesterType } from "@/lib/semester";
 import {
     getCached,
     setCached,
-    deliveryCacheKey
+    deliveryCacheKey,
+    incrAnalytics
 } from "../../../lib/cache-redis";
 
 export const dynamic = "force-dynamic";
@@ -43,11 +44,13 @@ export async function GET(request: NextRequest) {
         const cached = await getCached<{
             modes: Awaited<ReturnType<typeof fetchAvailableDeliveryModes>>;
         }>(cacheKey);
-        if (cached)
+        if (cached) {
+            await incrAnalytics("delivery:hits");
             return NextResponse.json(cached, {
                 status: 200,
                 headers: { "Cache-Control": cacheControl },
             });
+        }
 
         const modes = await fetchAvailableDeliveryModes(
             courseCode,
@@ -65,6 +68,7 @@ export async function GET(request: NextRequest) {
         }
 
         await setCached(cacheKey, { modes });
+        await incrAnalytics("delivery:misses");
         return NextResponse.json(
             { modes },
             { status: 200, headers: { "Cache-Control": cacheControl } }
@@ -75,6 +79,7 @@ export async function GET(request: NextRequest) {
                 ? err.message
                 : "Unknown error fetching delivery modes.";
         console.error("[API] Delivery modes error:", message, err);
+        await incrAnalytics("delivery:errors");
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

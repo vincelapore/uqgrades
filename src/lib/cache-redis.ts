@@ -67,6 +67,62 @@ export async function setCached<T>(
   }
 }
 
+const ANALYTICS_KEY_PREFIX = "analytics:";
+
+/** Event names used for analytics (server + optional client). Used for read path and POST allowlist. */
+export const ANALYTICS_EVENTS = [
+  "scrape:hits",
+  "scrape:misses",
+  "scrape:errors",
+  "scrape:failed_skip",
+  "delivery:hits",
+  "delivery:misses",
+  "delivery:errors",
+  "calendar_export",
+  "hurdle_clicked",
+  "copy_link",
+  "reset_confirmed",
+  "remove_course",
+  "how_to_opened",
+  "mark_help_opened",
+  "calendar_popup_opened",
+] as const;
+
+export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[number];
+
+/** Increment an analytics counter. Best-effort; failures are ignored. */
+export async function incrAnalytics(event: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await client.incr(`${ANALYTICS_KEY_PREFIX}${event}`);
+  } catch {
+    // ignore
+  }
+}
+
+/** Read current analytics counts for all known events. Missing keys or Redis errors return 0. */
+export async function getAnalyticsCounts(): Promise<Record<string, number>> {
+  const client = getRedis();
+  const out: Record<string, number> = {};
+  for (const event of ANALYTICS_EVENTS) {
+    out[event] = 0;
+  }
+  if (!client) return out;
+  try {
+    for (const event of ANALYTICS_EVENTS) {
+      const val = await client.get(`${ANALYTICS_KEY_PREFIX}${event}`);
+      const n = typeof val === "number" ? val : Number(val);
+      if (!Number.isNaN(n) && Number.isInteger(n) && n >= 0) {
+        out[event] = n;
+      }
+    }
+  } catch {
+    // leave zeros
+  }
+  return out;
+}
+
 const FAILED_SCRAPES_SET = "failed-scrapes:v1";
 
 /** Parse a scrape cache key into courseCode and optional semester. Returns null if key format is invalid. */

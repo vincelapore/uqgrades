@@ -10,7 +10,8 @@ import {
     setCached,
     scrapeCacheKey,
     addFailedScrape,
-    isFailedScrape
+    isFailedScrape,
+    incrAnalytics
 } from "../../../lib/cache-redis";
 
 export const dynamic = "force-dynamic";
@@ -67,13 +68,16 @@ export async function GET(request: NextRequest) {
             await getCached<Awaited<ReturnType<typeof fetchCourseAssessment>>>(
                 cacheKey
             );
-        if (cached)
+        if (cached) {
+            await incrAnalytics("scrape:hits");
             return NextResponse.json(cached, {
                 status: 200,
                 headers: { "Cache-Control": cacheControl },
             });
+        }
 
-        if (await isFailedScrape(cacheKey))
+        if (await isFailedScrape(cacheKey)) {
+            await incrAnalytics("scrape:failed_skip");
             return NextResponse.json(
                 {
                     error:
@@ -81,9 +85,11 @@ export async function GET(request: NextRequest) {
                 },
                 { status: 503 }
             );
+        }
 
         const data = await fetchCourseAssessment(trimmedCode, semester);
         await setCached(cacheKey, data);
+        await incrAnalytics("scrape:misses");
         return NextResponse.json(data, {
             status: 200,
             headers: { "Cache-Control": cacheControl },
@@ -94,6 +100,7 @@ export async function GET(request: NextRequest) {
                 ? err.message
                 : "Unknown error scraping course.";
         console.error("[API] Scrape error:", message, err);
+        await incrAnalytics("scrape:errors");
         if (message.includes("reached its limit")) {
             await addFailedScrape(cacheKey);
         }
