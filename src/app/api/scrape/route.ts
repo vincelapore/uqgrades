@@ -9,7 +9,8 @@ import {
     getCached,
     setCached,
     scrapeCacheKey,
-    addFailedScrape
+    addFailedScrape,
+    isFailedScrape
 } from "../../../lib/cache-redis";
 
 export const dynamic = "force-dynamic";
@@ -59,16 +60,34 @@ export async function GET(request: NextRequest) {
           )
         : `scrape:${trimmedCode}`;
 
+    const cacheControl = "public, max-age=31536000, immutable"; // 1 year; data keyed by course+semester
+
     try {
         const cached =
             await getCached<Awaited<ReturnType<typeof fetchCourseAssessment>>>(
                 cacheKey
             );
-        if (cached) return NextResponse.json(cached, { status: 200 });
+        if (cached)
+            return NextResponse.json(cached, {
+                status: 200,
+                headers: { "Cache-Control": cacheControl },
+            });
+
+        if (await isFailedScrape(cacheKey))
+            return NextResponse.json(
+                {
+                    error:
+                        "Scraper limit reached. This course was previously attempted; try again later."
+                },
+                { status: 503 }
+            );
 
         const data = await fetchCourseAssessment(trimmedCode, semester);
         await setCached(cacheKey, data);
-        return NextResponse.json(data, { status: 200 });
+        return NextResponse.json(data, {
+            status: 200,
+            headers: { "Cache-Control": cacheControl },
+        });
     } catch (err) {
         const message =
             err instanceof Error

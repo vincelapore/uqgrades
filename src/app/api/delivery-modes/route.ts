@@ -36,12 +36,18 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    const cacheControl = "public, max-age=31536000, immutable"; // 1 year; keyed by course+year+semester
+
     try {
         const cacheKey = deliveryCacheKey(courseCode, year, semesterType);
         const cached = await getCached<{
             modes: Awaited<ReturnType<typeof fetchAvailableDeliveryModes>>;
         }>(cacheKey);
-        if (cached) return NextResponse.json(cached, { status: 200 });
+        if (cached)
+            return NextResponse.json(cached, {
+                status: 200,
+                headers: { "Cache-Control": cacheControl },
+            });
 
         const modes = await fetchAvailableDeliveryModes(
             courseCode,
@@ -59,7 +65,10 @@ export async function GET(request: NextRequest) {
         }
 
         await setCached(cacheKey, { modes });
-        return NextResponse.json({ modes }, { status: 200 });
+        return NextResponse.json(
+            { modes },
+            { status: 200, headers: { "Cache-Control": cacheControl } }
+        );
     } catch (err) {
         const message =
             err instanceof Error

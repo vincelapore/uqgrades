@@ -1,7 +1,5 @@
 import { Redis } from "@upstash/redis";
 
-const CACHE_TTL_SECONDS = 24 * 60 * 60; // 24 hours
-
 let redis: Redis | null = null;
 
 function getRedis(): Redis | null {
@@ -47,15 +45,23 @@ export async function getCached<T>(key: string): Promise<T | null> {
   }
 }
 
+/**
+ * Store value in Redis. By default keys do not expire (saves ScraperAPI credits).
+ * Pass ttlSeconds to set an expiry (e.g. for short-lived data).
+ */
 export async function setCached<T>(
   key: string,
   value: T,
-  ttlSeconds: number = CACHE_TTL_SECONDS
+  ttlSeconds?: number
 ): Promise<void> {
   const client = getRedis();
   if (!client) return;
   try {
-    await client.set(key, value, { ex: ttlSeconds });
+    if (ttlSeconds != null && ttlSeconds > 0) {
+      await client.set(key, value, { ex: ttlSeconds });
+    } else {
+      await client.set(key, value);
+    }
   } catch {
     // ignore
   }
@@ -108,5 +114,16 @@ export async function addFailedScrape(cacheKey: string): Promise<void> {
     await client.sadd(FAILED_SCRAPES_SET, cacheKey);
   } catch {
     // ignore
+  }
+}
+
+/** True if we previously failed to scrape this key (e.g. API limit). Avoids burning credits retrying. */
+export async function isFailedScrape(cacheKey: string): Promise<boolean> {
+  const client = getRedis();
+  if (!client) return false;
+  try {
+    return (await client.sismember(FAILED_SCRAPES_SET, cacheKey)) === 1;
+  } catch {
+    return false;
   }
 }

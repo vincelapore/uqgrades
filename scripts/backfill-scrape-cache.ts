@@ -1,20 +1,23 @@
 /**
- * Backfill scrape cache with fresh course data (including hurdles) using local scraping.
+ * Backfill scrape cache and delivery-modes cache with fresh data using local scraping.
  * Run from project root: npm run backfill  (or npx tsx scripts/backfill-scrape-cache.ts)
  *
  * - Loads Redis config from .env or .env.local: KV_REST_API_URL + KV_REST_API_TOKEN
  *   (or UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN).
  * - Unsets SCRAPER_API_KEY so fetchUqHtml hits UQ directly (run from your machine, not Vercel).
- * - Lists all existing scrape:* keys in Redis, re-scrapes each course locally, and overwrites the cache.
+ * - Lists all existing scrape:* keys, re-scrapes each course locally, overwrites scrape cache (no TTL).
+ * - Then backfills delivery:* cache for each unique (course, year, semester) (no TTL).
  */
 
 import * as fs from "fs";
 import * as path from "path";
 import {
+    deliveryCacheKey,
     listScrapeCacheKeys,
     parseScrapeCacheKey,
     setCached
 } from "../src/lib/cache-redis";
+import { fetchAvailableDeliveryModes } from "../src/lib/delivery-modes";
 import type { SemesterSelection } from "../src/lib/semester";
 import { fetchCourseAssessment } from "../src/lib/uq-scraper";
 
@@ -123,7 +126,57 @@ async function main(): Promise<void> {
         }
     }
 
-    console.log(`Done. Updated: ${done}, Failed: ${failed}.`);
+    console.log(`Scrape backfill done. Updated: ${done}, Failed: ${failed}.`);
+
+    // Backfill delivery modes for each unique (courseCode, year, semester) from scrape keys
+    const deliveryTriples = new Map<string, { courseCode: string; year: number; semester: "Semester 1" | "Semester 2" | "Summer" }>();
+    for (const key of keys) {
+        const parsed = parseScrapeCacheKey(key);
+        if (!parsed || parsed.year == null || parsed.semester == null) continue;
+        const sem = parsed.semester as "Semester 1" | "Semester 2" | "Summer";
+        const id = `${parsed.courseCode}:${parsed.year}:${parsed.semester}`;
+        if (!deliveryTriples.has(id))
+            deliveryTriples.set(id, { courseCode: parsed.courseCode, year: parsed.year, semester: sem });
+    }
+
+    if (deliveryTriples.size > 0) {
+        console.log(
+            `Backfilling ${deliveryTriples.size} delivery mode cache(s)...`
+        );
+        let dDone = 0;
+        let dFailed = 0;
+        for (const [, { courseCode, year, semester }] of deliveryTriples) {
+            try {
+                const modes = await fetchAvailableDeliveryModes(
+                    courseCode,
+                    year,
+                    semester
+                );
+                if (modes.length > 0) {
+                    await setCached(deliveryCacheKey(courseCode, year, semester), { modes });
+                    dDone++;
+                    console.log(
+                        `[${dDone + dFailed}/${deliveryTriples.size}] OK delivery:${courseCode}:${year}:${semester}`
+                    );
+                } else {
+                    dFailed++;
+                    console.warn(
+                        `[${dDone + dFailed}/${deliveryTriples.size}] SKIP (no modes) delivery:${courseCode}:${year}:${semester}`
+                    );
+                }
+            } catch (err) {
+                dFailed++;
+                console.warn(
+                    `[${dDone + dFailed}/${deliveryTriples.size}] FAIL delivery:${courseCode}:${year}:${semester}:`,
+                    err instanceof Error ? err.message : err
+                );
+            }
+            if (dDone + dFailed < deliveryTriples.size) await delay(DELAY_MS);
+        }
+        console.log(
+            `Delivery backfill done. Updated: ${dDone}, Failed/Skipped: ${dFailed}.`
+        );
+    }
 }
 
 main().catch((err) => {
