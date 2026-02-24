@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -88,7 +88,7 @@ function Section({
     );
 }
 
-export default function AnalyticsPage() {
+function AnalyticsContent() {
     const searchParams = useSearchParams();
     const [counts, setCounts] = useState<Counts | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -191,5 +191,23 @@ export default function AnalyticsPage() {
                 </div>
             </main>
         </div>
+    );
+}
+
+function AnalyticsLoading() {
+    return (
+        <div className='min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-50'>
+            <main className='mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center gap-4 px-4'>
+                <p className='text-slate-400'>Loading analytics…</p>
+            </main>
+        </div>
+    );
+}
+
+export default function AnalyticsPage() {
+    return (
+        <Suspense fallback={<AnalyticsLoading />}>
+            <AnalyticsContent />
+        </Suspense>
     );
 }

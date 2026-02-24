@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
     getAnalyticsCounts,
+    getScrapeCacheCount,
     incrAnalytics,
     ANALYTICS_EVENTS
 } from "@/lib/cache-redis";
@@ -21,8 +22,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     try {
-        const counts = await getAnalyticsCounts();
-        return NextResponse.json(counts);
+        const [counts, coursesCached] = await Promise.all([
+            getAnalyticsCounts(),
+            getScrapeCacheCount(),
+        ]);
+        return NextResponse.json({ ...counts, coursesCached });
     } catch {
         return NextResponse.json(
             { error: "Failed to load analytics" },

@@ -162,6 +162,12 @@ export async function listScrapeCacheKeys(): Promise<string[]> {
   }
 }
 
+/** Number of course scrape entries currently in cache (scrape:* keys). */
+export async function getScrapeCacheCount(): Promise<number> {
+  const keys = await listScrapeCacheKeys();
+  return keys.length;
+}
+
 /** Add a course+semester to the set of failed scrape attempts (e.g. limit reached). */
 export async function addFailedScrape(cacheKey: string): Promise<void> {
   const client = getRedis();
