@@ -4,7 +4,10 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-type Counts = Record<string, number>;
+type Counts = Record<string, number> & {
+    coursesCached?: number;
+    coursesCachedCapped?: boolean;
+};
 
 const SCRAPE_LABELS: Record<string, string> = {
     "scrape:hits": "Cache hits",
@@ -48,11 +51,20 @@ const CLIENT_KEYS = [
     "calendar_popup_opened"
 ];
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({
+    label,
+    value,
+    capped
+}: {
+    label: string;
+    value: number;
+    capped?: boolean;
+}) {
     return (
         <div className='rounded-xl border border-slate-700/50 bg-slate-900/50 px-4 py-3 backdrop-blur-sm'>
             <p className='text-xs font-medium text-slate-400'>{label}</p>
             <p className='mt-1 text-2xl font-semibold tabular-nums text-slate-50'>
+                {capped ? "≈ " : ""}
                 {value.toLocaleString()}
             </p>
         </div>
@@ -170,12 +182,27 @@ function AnalyticsContent() {
                 </header>
 
                 <div className='flex flex-col gap-8'>
-                    <Section
-                        title='Scrape (course lookups)'
-                        keys={SCRAPE_KEYS}
-                        labels={SCRAPE_LABELS}
-                        counts={counts ?? {}}
-                    />
+                    <section className='rounded-2xl border border-slate-800/50 bg-gradient-to-br from-slate-900/50 via-slate-950/50 to-slate-900/30 p-6 backdrop-blur-sm shadow-xl shadow-black/20 sm:p-8'>
+                        <h2 className='mb-4 text-lg font-semibold text-slate-100'>
+                            Scrape (course lookups)
+                        </h2>
+                        <div className='mb-4'>
+                            <StatCard
+                                label='Courses cached'
+                                value={counts?.coursesCached ?? 0}
+                                capped={counts?.coursesCachedCapped}
+                            />
+                        </div>
+                        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+                            {SCRAPE_KEYS.map((key) => (
+                                <StatCard
+                                    key={key}
+                                    label={SCRAPE_LABELS[key] ?? key}
+                                    value={counts?.[key] ?? 0}
+                                />
+                            ))}
+                        </div>
+                    </section>
                     <Section
                         title='Delivery modes'
                         keys={DELIVERY_KEYS}

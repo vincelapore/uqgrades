@@ -50,6 +50,16 @@ export function getCurrentSemester(): SemesterSelection {
   }
 }
 
+/** Years to show in the year dropdown (current - 7 through current + 2). Updates automatically. */
+export function getSelectableYears(): number[] {
+  const year = new Date().getFullYear();
+  const start = year - 7;
+  const end = year + 2;
+  const years: number[] = [];
+  for (let y = start; y <= end; y++) years.push(y);
+  return years;
+}
+
 export function formatSemester(sel: SemesterSelection): string {
   return `${sel.semester} ${sel.year} (${sel.delivery})`;
 }

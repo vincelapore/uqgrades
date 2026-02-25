@@ -28,6 +28,7 @@ import {
 import type { CourseAssessment } from "@/lib/uq-scraper";
 import {
     getCurrentSemester,
+    getSelectableYears,
     formatSemester,
     formatSemesterDates,
     type SemesterSelection,
@@ -43,6 +44,20 @@ import {
 } from "@/lib/calendar";
 
 const DEFAULT_GOAL: GradeBand = 7;
+
+/** Fire-and-forget analytics event. Matches ANALYTICS_EVENTS in cache-redis (client events only used here). */
+function trackAnalytics(event: string): void {
+    const secret =
+        typeof process.env.NEXT_PUBLIC_ANALYTICS_SECRET === "string"
+            ? process.env.NEXT_PUBLIC_ANALYTICS_SECRET
+            : "";
+    const url = `/api/analytics${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
+    fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event }),
+    }).catch(() => {});
+}
 
 function HomeContent() {
     const searchParams = useSearchParams();
@@ -81,6 +96,8 @@ function HomeContent() {
         courseIdx: number;
         itemIdx: number;
     } | null>(null);
+    const [showSemesterChangedBanner, setShowSemesterChangedBanner] =
+        useState(false);
 
     const stateRef = useRef(state);
     stateRef.current = state;
@@ -185,6 +202,36 @@ function HomeContent() {
         }, STORAGE_DEBOUNCE_MS);
         return () => window.clearTimeout(id);
     }, [state, isHydrated]);
+
+    // When tab becomes visible, check if "current" semester has changed; refresh picker or show banner.
+    useEffect(() => {
+        const handler = () => {
+            const current = getCurrentSemester();
+            const effective =
+                state.courses.length > 0 && state.defaultSemester
+                    ? {
+                          year: state.defaultSemester.year,
+                          semester: state.defaultSemester.semester
+                      }
+                    : semester;
+            if (
+                current.year !== effective.year ||
+                current.semester !== effective.semester
+            ) {
+                if (state.courses.length === 0) {
+                    setSemester({
+                        year: current.year,
+                        semester: current.semester
+                    });
+                } else {
+                    setShowSemesterChangedBanner(true);
+                }
+            }
+        };
+        if (typeof window === "undefined") return;
+        window.addEventListener("visibilitychange", handler);
+        return () => window.removeEventListener("visibilitychange", handler);
+    }, [state.courses.length, state.defaultSemester, semester]);
 
     const findDeliveryModes = useCallback(
         async (codeRaw: string) => {
@@ -333,6 +380,7 @@ function HomeContent() {
             ...prev,
             courses: prev.courses.filter((_, i) => i !== index)
         }));
+        trackAnalytics("remove_course");
     }, []);
 
     const copyLink = useCallback(async () => {
@@ -344,6 +392,7 @@ function HomeContent() {
             await navigator.clipboard.writeText(url);
             setLinkCopied(true);
             setTimeout(() => setLinkCopied(false), 2000);
+            trackAnalytics("copy_link");
         } catch {
             setError("Could not copy link.");
         }
@@ -356,6 +405,7 @@ function HomeContent() {
         setSemester({ year: current.year, semester: current.semester });
         setShowResetConfirm(false);
         setError(null);
+        trackAnalytics("reset_confirmed");
         try {
             if (typeof window !== "undefined" && window.localStorage) {
                 window.localStorage.removeItem(STORAGE_KEY);
@@ -425,6 +475,34 @@ function HomeContent() {
     return (
         <div className='min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-50'>
             <main className='mx-auto flex min-h-screen max-w-6xl flex-col gap-10 px-4 pb-20 pt-12 sm:px-6 lg:px-8'>
+                {showSemesterChangedBanner && (
+                    <div className='rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 flex flex-wrap items-center justify-between gap-2'>
+                        <span>
+                            Semester has changed. Reset to use the new default?
+                        </span>
+                        <div className='flex gap-2'>
+                            <button
+                                type='button'
+                                onClick={() => {
+                                    setShowSemesterChangedBanner(false);
+                                }}
+                                className='rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700'
+                            >
+                                Dismiss
+                            </button>
+                            <button
+                                type='button'
+                                onClick={() => {
+                                    setShowSemesterChangedBanner(false);
+                                    handleReset();
+                                }}
+                                className='rounded border border-amber-500/50 bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/30'
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <header className='flex flex-col gap-5 border-b border-slate-800/50 pb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
                     <div className='relative min-w-0'>
                         <h1 className='text-2xl font-bold tracking-tight text-slate-50 sm:text-4xl'>
@@ -435,7 +513,10 @@ function HomeContent() {
                             what you need to hit that 7 (or 4).{" "}
                             <button
                                 type='button'
-                                onClick={() => setHowToOpen(true)}
+                                onClick={() => {
+                                setHowToOpen(true);
+                                trackAnalytics("how_to_opened");
+                            }}
                                 className='text-slate-400 underline underline-offset-2 transition-colors hover:text-slate-200'
                             >
                                 How to use
@@ -666,14 +747,16 @@ function HomeContent() {
                                                 }
                                                 className='rounded-lg border border-slate-700/50 bg-slate-950/50 px-3 py-2 text-xs font-medium outline-none backdrop-blur-sm transition-all focus:border-sky-500/50 focus:bg-slate-900/50 focus:ring-2 focus:ring-sky-500/20'
                                             >
-                                                {[
-                                                    2020, 2021, 2022, 2023,
-                                                    2024, 2025, 2026, 2027
-                                                ].map((y) => (
-                                                    <option key={y} value={y}>
-                                                        {y}
-                                                    </option>
-                                                ))}
+                                                {getSelectableYears().map(
+                                                    (y) => (
+                                                        <option
+                                                            key={y}
+                                                            value={y}
+                                                        >
+                                                            {y}
+                                                        </option>
+                                                    )
+                                                )}
                                             </select>
                                             <select
                                                 value={semester.semester}
@@ -1004,9 +1087,10 @@ function HomeContent() {
                                                 </a>
                                             )}
                                             <button
-                                                onClick={() =>
-                                                    setCalendarPopup(idx)
-                                                }
+                                                onClick={() => {
+                                                    setCalendarPopup(idx);
+                                                    trackAnalytics("calendar_popup_opened");
+                                                }}
                                                 className='inline-flex shrink-0 items-center rounded-lg border border-slate-700/50 bg-slate-950/50 px-2.5 py-1.5 text-xs font-medium text-slate-400 backdrop-blur-sm transition-all hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-300'
                                                 title='Save to calendar'
                                             >
@@ -1138,11 +1222,10 @@ function HomeContent() {
                                                         Mark
                                                         <button
                                                             type='button'
-                                                            onClick={() =>
-                                                                setMarkHelpOpen(
-                                                                    true
-                                                                )
-                                                            }
+                                                            onClick={() => {
+                                                                setMarkHelpOpen(true);
+                                                                trackAnalytics("mark_help_opened");
+                                                            }}
                                                             className='rounded p-0.5 text-slate-500 transition-colors hover:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500/50'
                                                             aria-label='Mark input help'
                                                         >
@@ -1187,12 +1270,13 @@ function HomeContent() {
                                                                     item.hurdleThreshold != null) && (
                                                                     <button
                                                                         type='button'
-                                                                        onClick={() =>
-                                                                            setHurdlePopup({
-                                                                                courseIdx: idx,
-                                                                                itemIdx: i
-                                                                            })
-                                                                        }
+                                                        onClick={() => {
+                                                            setHurdlePopup({
+                                                                courseIdx: idx,
+                                                                itemIdx: i
+                                                            });
+                                                            trackAnalytics("hurdle_clicked");
+                                                        }}
                                                                         className='inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-400 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20'
                                                                         title='Hurdle requirement'
                                                                     >
@@ -1774,6 +1858,7 @@ function HomeContent() {
                                                         link
                                                     );
                                                     URL.revokeObjectURL(url);
+                                                    trackAnalytics("calendar_export");
                                                 }}
                                                 className='inline-flex items-center gap-2 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 backdrop-blur-sm transition-all hover:border-emerald-500 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-emerald-500/50 disabled:hover:bg-emerald-500/10'
                                             >

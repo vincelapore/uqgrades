@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
         if (modes.length === 0) {
             return NextResponse.json(
                 {
-                    error: `No delivery modes found for ${courseCode} ${semesterType} ${year}. Verify the semester and year.`
+                    error: `No delivery modes found for ${courseCode} ${semesterType} ${year}. Verify the semester and year.`,
+                    reason: "no_offerings"
                 },
                 { status: 404 }
             );

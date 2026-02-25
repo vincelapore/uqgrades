@@ -62,8 +62,8 @@ export async function setCached<T>(
     } else {
       await client.set(key, value);
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn("[cache] setCached failed:", err instanceof Error ? err.message : "unknown");
   }
 }
 
@@ -96,8 +96,8 @@ export async function incrAnalytics(event: string): Promise<void> {
   if (!client) return;
   try {
     await client.incr(`${ANALYTICS_KEY_PREFIX}${event}`);
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn("[cache] incrAnalytics failed:", err instanceof Error ? err.message : "unknown");
   }
 }
 
@@ -162,10 +162,52 @@ export async function listScrapeCacheKeys(): Promise<string[]> {
   }
 }
 
-/** Number of course scrape entries currently in cache (scrape:* keys). */
-export async function getScrapeCacheCount(): Promise<number> {
-  const keys = await listScrapeCacheKeys();
-  return keys.length;
+export type ScrapeCacheCountResult = { count: number; capped: boolean };
+
+/**
+ * Number of course scrape entries in cache (scrape:* keys).
+ * If maxKeys is set, stops counting at maxKeys and returns capped: true (avoids loading all keys when using SCAN).
+ */
+export async function getScrapeCacheCount(
+  maxKeys?: number
+): Promise<ScrapeCacheCountResult> {
+  const client = getRedis();
+  if (!client) return { count: 0, capped: false };
+
+  if (maxKeys == null || maxKeys <= 0) {
+    try {
+      const keys = await listScrapeCacheKeys();
+      return { count: keys.length, capped: false };
+    } catch {
+      return { count: 0, capped: false };
+    }
+  }
+
+  try {
+    let cursor: number | string = 0;
+    let total = 0;
+    let capped = false;
+    do {
+      const result = (await client.scan(cursor, {
+        match: "scrape:*",
+        count: 500,
+      })) as [string | number, string[]];
+      const nextCursor = result[0];
+      const keys = Array.isArray(result[1]) ? result[1] : [];
+      total += keys.length;
+      if (total >= maxKeys) {
+        total = maxKeys;
+        capped = true;
+        break;
+      }
+      cursor = nextCursor;
+    } while (String(cursor) !== "0");
+    return { count: total, capped };
+  } catch {
+    const keys = await listScrapeCacheKeys();
+    const count = Math.min(keys.length, maxKeys);
+    return { count, capped: keys.length > maxKeys };
+  }
 }
 
 /** Add a course+semester to the set of failed scrape attempts (e.g. limit reached). */
@@ -188,4 +230,103 @@ export async function isFailedScrape(cacheKey: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Extract year from a delivery cache key (delivery:COURSE:YEAR:SEMESTER). Returns undefined if invalid. */
+function yearFromDeliveryKey(key: string): number | undefined {
+  if (!key.startsWith("delivery:")) return undefined;
+  const parts = key.split(":");
+  if (parts.length < 4) return undefined;
+  const y = parseInt(parts[2], 10);
+  return Number.isNaN(y) ? undefined : y;
+}
+
+const BATCH_SIZE = 100;
+
+/**
+ * Delete scrape:* and delivery:* keys whose year is strictly less than cutoffYear.
+ * Keeps current and previous year. Deletes in batches. Returns counts deleted.
+ */
+export async function evictScrapeAndDeliveryCacheOlderThanYear(
+  cutoffYear: number
+): Promise<{ deletedScrape: number; deletedDelivery: number }> {
+  const client = getRedis();
+  let deletedScrape = 0;
+  let deletedDelivery = 0;
+  if (!client) return { deletedScrape, deletedDelivery };
+
+  try {
+    const scrapeKeys = await listScrapeCacheKeys();
+    const toDeleteScrape: string[] = [];
+    for (const key of scrapeKeys) {
+      const parsed = parseScrapeCacheKey(key);
+      if (parsed?.year != null && parsed.year < cutoffYear) {
+        toDeleteScrape.push(key);
+        if (toDeleteScrape.length >= BATCH_SIZE) {
+          await client.del(...toDeleteScrape);
+          deletedScrape += toDeleteScrape.length;
+          toDeleteScrape.length = 0;
+        }
+      }
+    }
+    if (toDeleteScrape.length > 0) {
+      await client.del(...toDeleteScrape);
+      deletedScrape += toDeleteScrape.length;
+    }
+  } catch {
+    // leave deletedScrape as is
+  }
+
+  try {
+    const deliveryKeys = await client.keys("delivery:*");
+    const list = Array.isArray(deliveryKeys) ? deliveryKeys : [];
+    const toDeleteDelivery: string[] = [];
+    for (const key of list) {
+      const year = yearFromDeliveryKey(key);
+      if (year != null && year < cutoffYear) {
+        toDeleteDelivery.push(key);
+        if (toDeleteDelivery.length >= BATCH_SIZE) {
+          await client.del(...toDeleteDelivery);
+          deletedDelivery += toDeleteDelivery.length;
+          toDeleteDelivery.length = 0;
+        }
+      }
+    }
+    if (toDeleteDelivery.length > 0) {
+      await client.del(...toDeleteDelivery);
+      deletedDelivery += toDeleteDelivery.length;
+    }
+  } catch {
+    // leave deletedDelivery as is
+  }
+
+  return { deletedScrape, deletedDelivery };
+}
+
+/**
+ * Remove from failed-scrapes set any member whose key's year is < cutoffYear.
+ * Returns number of members removed.
+ */
+export async function trimFailedScrapesOlderThanYear(
+  cutoffYear: number
+): Promise<number> {
+  const client = getRedis();
+  if (!client) return 0;
+  try {
+    const members = await client.smembers(FAILED_SCRAPES_SET);
+    const toRemove: string[] = [];
+    for (const key of members) {
+      const parsed = parseScrapeCacheKey(key);
+      if (parsed?.year != null && parsed.year < cutoffYear) {
+        toRemove.push(key);
+      }
+    }
+    if (toRemove.length > 0) {
+      await client.srem(FAILED_SCRAPES_SET, ...toRemove);
+      return toRemove.length;
+    }
+  } catch {
+    // ignore
+  }
+  return 0;
 }

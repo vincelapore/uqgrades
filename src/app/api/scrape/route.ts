@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json(
                 {
                     error:
-                        "Scraper limit reached. This course was previously attempted; try again later."
+                        "We've hit a temporary limit for this course. Please try again in a few hours or tomorrow."
                 },
                 { status: 503 }
             );

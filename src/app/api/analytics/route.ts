@@ -22,11 +22,15 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     try {
-        const [counts, coursesCached] = await Promise.all([
+        const [counts, scrapeCache] = await Promise.all([
             getAnalyticsCounts(),
-            getScrapeCacheCount(),
+            getScrapeCacheCount(50000),
         ]);
-        return NextResponse.json({ ...counts, coursesCached });
+        return NextResponse.json({
+            ...counts,
+            coursesCached: scrapeCache.count,
+            coursesCachedCapped: scrapeCache.capped,
+        });
     } catch {
         return NextResponse.json(
             { error: "Failed to load analytics" },
