@@ -7,6 +7,8 @@ import Link from "next/link";
 type Counts = Record<string, number> & {
     coursesCached?: number;
     coursesCachedCapped?: boolean;
+    recentScrapeErrors?: string[];
+    recentDeliveryErrors?: string[];
 };
 
 const SCRAPE_LABELS: Record<string, string> = {
@@ -52,21 +54,97 @@ const CLIENT_KEYS = [
 ];
 
 function StatCard({
+    statKey,
     label,
     value,
-    capped
+    capped,
+    detail,
+    isExpanded,
+    onToggle
 }: {
+    statKey: string;
     label: string;
     value: number;
     capped?: boolean;
+    detail?: { recent?: string[] };
+    isExpanded?: boolean;
+    onToggle?: () => void;
 }) {
+    const hasDetail =
+        (detail?.recent?.length ?? 0) > 0 && value > 0;
+    const canExpand = hasDetail && onToggle;
+
     return (
-        <div className='rounded-xl border border-slate-700/50 bg-slate-900/50 px-4 py-3 backdrop-blur-sm'>
-            <p className='text-xs font-medium text-slate-400'>{label}</p>
-            <p className='mt-1 text-2xl font-semibold tabular-nums text-slate-50'>
-                {capped ? "≈ " : ""}
-                {value.toLocaleString()}
-            </p>
+        <div
+            className={`rounded-xl border bg-slate-900/50 px-4 py-3 backdrop-blur-sm transition-all duration-150 hover:bg-slate-800/70 hover:border-slate-600 ${
+                canExpand
+                    ? "cursor-pointer border-rose-500/40 hover:border-rose-400 hover:bg-slate-800/80 hover:shadow-md hover:shadow-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                    : "border-slate-700/50"
+            }`}
+            onClick={canExpand ? onToggle : undefined}
+            role={canExpand ? "button" : undefined}
+            tabIndex={canExpand ? 0 : undefined}
+            onKeyDown={
+                canExpand
+                    ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onToggle?.();
+                          }
+                      }
+                    : undefined
+            }
+        >
+            <div className='flex items-start justify-between gap-2'>
+                <div className='min-w-0'>
+                    <p className='text-xs font-medium text-slate-400'>
+                        {label}
+                    </p>
+                    <p className='mt-1 text-2xl font-semibold tabular-nums text-slate-50'>
+                        {capped ? "≈ " : ""}
+                        {value.toLocaleString()}
+                    </p>
+                </div>
+                {canExpand && (
+                    <span
+                        className={`mt-1 shrink-0 text-slate-500 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        aria-hidden
+                    >
+                        <svg
+                            className='h-4 w-4'
+                            fill='none'
+                            stroke='currentColor'
+                            viewBox='0 0 24 24'
+                        >
+                            <path
+                                strokeLinecap='round'
+                                strokeLinejoin='round'
+                                strokeWidth={2}
+                                d='M19 9l-7 7-7-7'
+                            />
+                        </svg>
+                    </span>
+                )}
+            </div>
+            {hasDetail && isExpanded && detail?.recent && (
+                <div className='mt-4 transition-all duration-200'>
+                    <div className='rounded-lg border border-rose-500/20 bg-rose-950/30 px-3 py-2.5'>
+                        <p className='mb-2 text-xs font-medium uppercase tracking-wider text-rose-300/90'>
+                            Recent courses ({detail.recent.length} shown)
+                        </p>
+                        <ul className='space-y-1.5 max-h-48 overflow-y-auto'>
+                            {[...detail.recent].reverse().map((course, i) => (
+                                <li
+                                    key={`${course}-${i}`}
+                                    className='rounded-md bg-slate-900/60 px-2.5 py-1.5 font-mono text-sm text-slate-200'
+                                >
+                                    {course}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -75,12 +153,18 @@ function Section({
     title,
     keys,
     labels,
-    counts
+    counts,
+    keyDetails,
+    expandedKey,
+    onToggleExpand
 }: {
     title: string;
     keys: string[];
     labels: Record<string, string>;
     counts: Counts;
+    keyDetails?: Record<string, { recent?: string[] }>;
+    expandedKey?: string | null;
+    onToggleExpand?: (key: string) => void;
 }) {
     return (
         <section className='rounded-2xl border border-slate-800/50 bg-gradient-to-br from-slate-900/50 via-slate-950/50 to-slate-900/30 p-6 backdrop-blur-sm shadow-xl shadow-black/20 sm:p-8'>
@@ -91,8 +175,16 @@ function Section({
                 {keys.map((key) => (
                     <StatCard
                         key={key}
+                        statKey={key}
                         label={labels[key] ?? key}
                         value={counts[key] ?? 0}
+                        detail={keyDetails?.[key]}
+                        isExpanded={expandedKey === key}
+                        onToggle={
+                            onToggleExpand
+                                ? () => onToggleExpand(expandedKey === key ? "" : key)
+                                : undefined
+                        }
                     />
                 ))}
             </div>
@@ -105,6 +197,7 @@ function AnalyticsContent() {
     const [counts, setCounts] = useState<Counts | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
     const secret =
         searchParams.get("secret") ??
@@ -188,6 +281,7 @@ function AnalyticsContent() {
                         </h2>
                         <div className='mb-4'>
                             <StatCard
+                                statKey='coursesCached'
                                 label='Courses cached'
                                 value={counts?.coursesCached ?? 0}
                                 capped={counts?.coursesCachedCapped}
@@ -197,8 +291,23 @@ function AnalyticsContent() {
                             {SCRAPE_KEYS.map((key) => (
                                 <StatCard
                                     key={key}
+                                    statKey={key}
                                     label={SCRAPE_LABELS[key] ?? key}
                                     value={counts?.[key] ?? 0}
+                                    detail={
+                                        key === "scrape:errors"
+                                            ? {
+                                                  recent:
+                                                      counts?.recentScrapeErrors
+                                              }
+                                            : undefined
+                                    }
+                                    isExpanded={expandedKey === key}
+                                    onToggle={() =>
+                                        setExpandedKey(
+                                            expandedKey === key ? null : key
+                                        )
+                                    }
                                 />
                             ))}
                         </div>
@@ -208,6 +317,15 @@ function AnalyticsContent() {
                         keys={DELIVERY_KEYS}
                         labels={DELIVERY_LABELS}
                         counts={counts ?? {}}
+                        keyDetails={{
+                            "delivery:errors": {
+                                recent: counts?.recentDeliveryErrors
+                            }
+                        }}
+                        expandedKey={expandedKey}
+                        onToggleExpand={(key) =>
+                            setExpandedKey(key || null)
+                        }
                     />
                     <Section
                         title='Client events'

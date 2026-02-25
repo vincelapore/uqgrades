@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
     getAnalyticsCounts,
     getScrapeCacheCount,
+    getRecentScrapeErrors,
+    getRecentDeliveryErrors,
     incrAnalytics,
     ANALYTICS_EVENTS
 } from "@/lib/cache-redis";
@@ -22,14 +24,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     try {
-        const [counts, scrapeCache] = await Promise.all([
-            getAnalyticsCounts(),
-            getScrapeCacheCount(50000),
-        ]);
+        const [counts, scrapeCache, recentScrapeErrors, recentDeliveryErrors] =
+            await Promise.all([
+                getAnalyticsCounts(),
+                getScrapeCacheCount(50000),
+                getRecentScrapeErrors(),
+                getRecentDeliveryErrors(),
+            ]);
         return NextResponse.json({
             ...counts,
             coursesCached: scrapeCache.count,
             coursesCachedCapped: scrapeCache.capped,
+            recentScrapeErrors,
+            recentDeliveryErrors,
         });
     } catch {
         return NextResponse.json(

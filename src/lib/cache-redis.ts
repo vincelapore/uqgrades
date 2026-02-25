@@ -123,6 +123,58 @@ export async function getAnalyticsCounts(): Promise<Record<string, number>> {
   return out;
 }
 
+const RECENT_SCRAPE_ERRORS_KEY = "analytics:recent_scrape_errors";
+const RECENT_DELIVERY_ERRORS_KEY = "analytics:recent_delivery_errors";
+const MAX_RECENT_ERRORS = 20;
+
+/** Append a human-readable course label to the recent scrape errors list (bounded). Best-effort. */
+export async function pushRecentScrapeError(label: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await client.rpush(RECENT_SCRAPE_ERRORS_KEY, label);
+    await client.ltrim(RECENT_SCRAPE_ERRORS_KEY, -MAX_RECENT_ERRORS, -1);
+  } catch {
+    // ignore
+  }
+}
+
+/** Append a human-readable course label to the recent delivery errors list (bounded). Best-effort. */
+export async function pushRecentDeliveryError(label: string): Promise<void> {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await client.rpush(RECENT_DELIVERY_ERRORS_KEY, label);
+    await client.ltrim(RECENT_DELIVERY_ERRORS_KEY, -MAX_RECENT_ERRORS, -1);
+  } catch {
+    // ignore
+  }
+}
+
+/** Get the most recent scrape error labels (newest last). */
+export async function getRecentScrapeErrors(): Promise<string[]> {
+  const client = getRedis();
+  if (!client) return [];
+  try {
+    const list = await client.lrange(RECENT_SCRAPE_ERRORS_KEY, 0, -1);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Get the most recent delivery error labels (newest last). */
+export async function getRecentDeliveryErrors(): Promise<string[]> {
+  const client = getRedis();
+  if (!client) return [];
+  try {
+    const list = await client.lrange(RECENT_DELIVERY_ERRORS_KEY, 0, -1);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
 const FAILED_SCRAPES_SET = "failed-scrapes:v1";
 
 /** Parse a scrape cache key into courseCode and optional semester. Returns null if key format is invalid. */

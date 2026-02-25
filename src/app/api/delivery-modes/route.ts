@@ -5,7 +5,8 @@ import {
     getCached,
     setCached,
     deliveryCacheKey,
-    incrAnalytics
+    incrAnalytics,
+    pushRecentDeliveryError
 } from "../../../lib/cache-redis";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,8 @@ export async function GET(request: NextRequest) {
                 : "Unknown error fetching delivery modes.";
         console.error("[API] Delivery modes error:", message, err);
         await incrAnalytics("delivery:errors");
+        const label = `${courseCode} ${year} ${semesterType}`;
+        await pushRecentDeliveryError(label);
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

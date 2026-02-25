@@ -11,7 +11,9 @@ import {
     scrapeCacheKey,
     addFailedScrape,
     isFailedScrape,
-    incrAnalytics
+    incrAnalytics,
+    pushRecentScrapeError,
+    parseScrapeCacheKey
 } from "../../../lib/cache-redis";
 
 export const dynamic = "force-dynamic";
@@ -101,6 +103,11 @@ export async function GET(request: NextRequest) {
                 : "Unknown error scraping course.";
         console.error("[API] Scrape error:", message, err);
         await incrAnalytics("scrape:errors");
+        const parsed = parseScrapeCacheKey(cacheKey);
+        const label = parsed
+            ? `${parsed.courseCode} ${parsed.year ?? "?"} ${(parsed.semester ?? "?").replace(/_/g, " ")} ${parsed.delivery ?? "?"}`
+            : cacheKey;
+        await pushRecentScrapeError(label);
         if (message.includes("reached its limit")) {
             await addFailedScrape(cacheKey);
         }
