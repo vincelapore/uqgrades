@@ -10,20 +10,20 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-    title: "UQ Grades | Track Your Semester Progress",
+    title: "GradeMate | Track Your Semester Progress",
     description:
-        "Track your UQ semester progress, calculate grades, and see what you need to hit your target (7 or 4). Add courses, enter marks, export calendars.",
+        "Track your semester progress, calculate grades, and see what you need to hit your target. Add courses, enter marks, export calendars.",
     metadataBase: new URL(
-        process.env.NEXT_PUBLIC_APP_URL ?? "https://uqgrades.com"
+        process.env.NEXT_PUBLIC_APP_URL ?? "https://grademate.dev"
     ),
     icons: {
         icon: "/icon.png",
         apple: "/apple-touch-icon.png",
     },
     openGraph: {
-        title: "UQ Grades | Track Your Semester Progress",
+        title: "GradeMate | Track Your Semester Progress",
         description:
-            "Track your UQ semester progress, calculate grades, and see what you need to hit your target.",
+            "Track your semester progress, calculate grades, and see what you need to hit your target.",
     },
 };
 
