@@ -1,0 +1,26 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "uqgrades.com"
+        }
+      ],
+      "destination": "https://grademate.dev/university/uq/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.uqgrades.com"
+        }
+      ],
+      "destination": "https://grademate.dev/university/uq/:path*",
+      "permanent": true
+    }
+  ]
+}
