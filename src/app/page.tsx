@@ -1,10 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-const STORAGE_KEY = "grademate-university";
 
 const universities = [
     {
@@ -18,33 +12,7 @@ const universities = [
     },
 ];
 
-const validUniversityIds = new Set(universities.map((u) => u.id));
-
 export default function Home() {
-    const router = useRouter();
-    const [isChecking, setIsChecking] = useState(true);
-
-    useEffect(() => {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored && validUniversityIds.has(stored)) {
-            router.replace(`/university/${stored}`);
-        } else {
-            setIsChecking(false);
-        }
-    }, [router]);
-
-    const handleUniversityClick = (id: string) => {
-        localStorage.setItem(STORAGE_KEY, id);
-    };
-
-    if (isChecking) {
-        return (
-            <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-400'>
-                Loading...
-            </div>
-        );
-    }
-
     return (
         <div className='flex min-h-screen flex-col bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900'>
             <main className='mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-12 sm:px-6 sm:py-20'>
@@ -67,7 +35,6 @@ export default function Home() {
                             <Link
                                 key={uni.id}
                                 href={`/university/${uni.id}`}
-                                onClick={() => handleUniversityClick(uni.id)}
                                 className={`group relative overflow-hidden rounded-xl border bg-gradient-to-br ${uni.color} ${uni.borderColor} p-6 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20`}
                             >
                                 <div className='relative z-10'>
