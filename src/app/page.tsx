@@ -10,6 +10,15 @@ const universities = [
         borderColor: "border-purple-500/30 hover:border-purple-400/50",
         textColor: "text-purple-300",
     },
+    {
+        id: "qut",
+        name: "Queensland University of Technology",
+        shortName: "QUT",
+        location: "Brisbane, Australia",
+        color: "from-blue-500/20 to-blue-600/10",
+        borderColor: "border-blue-500/30 hover:border-blue-400/50",
+        textColor: "text-blue-300",
+    },
 ];
 
 export default function Home() {

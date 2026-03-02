@@ -64,8 +64,28 @@ export function formatSemester(sel: SemesterSelection): string {
   return `${sel.semester} ${sel.year} (${sel.delivery})`;
 }
 
-export function getSemesterDates(sel: SemesterSelection): { start: string; end: string } | null {
-  // Based on UQ Academic Calendar 2026
+export function getSemesterDates(sel: SemesterSelection, university: string = "uq"): { start: string; end: string } | null {
+  if (university === "qut") {
+    // QUT Academic Calendar dates (approximate)
+    if (sel.semester === "Semester 1") {
+      return {
+        start: `${sel.year}-02-17`,
+        end: `${sel.year}-06-14`,
+      };
+    } else if (sel.semester === "Semester 2") {
+      return {
+        start: `${sel.year}-07-14`,
+        end: `${sel.year}-11-08`,
+      };
+    } else if (sel.semester === "Summer") {
+      return {
+        start: `${sel.year}-11-18`,
+        end: `${sel.year + 1}-02-07`,
+      };
+    }
+  }
+  
+  // UQ Academic Calendar dates (default)
   if (sel.semester === "Semester 1") {
     return {
       start: `${sel.year}-02-23`,
@@ -77,20 +97,26 @@ export function getSemesterDates(sel: SemesterSelection): { start: string; end: 
       end: `${sel.year}-11-15`,
     };
   } else if (sel.semester === "Summer") {
-    // Summer semester typically runs Nov-Dec or Dec-Jan
-    if (sel.year >= 2026) {
-      return {
-        start: `${sel.year}-11-25`,
-        end: `${sel.year + 1}-02-14`,
-      };
-    } else {
-      return {
-        start: `${sel.year}-11-25`,
-        end: `${sel.year + 1}-02-14`,
-      };
-    }
+    return {
+      start: `${sel.year}-11-25`,
+      end: `${sel.year + 1}-02-14`,
+    };
   }
   return null;
+}
+
+/** Convert semester type to QUT study period code */
+export function semesterToQUTCode(semester: SemesterType): string {
+  switch (semester) {
+    case "Semester 1":
+      return "SEM-1";
+    case "Semester 2":
+      return "SEM-2";
+    case "Summer":
+      return "SUM";
+    default:
+      return "SEM-1";
+  }
 }
 
 const MONTH_NAMES = [

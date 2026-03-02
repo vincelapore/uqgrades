@@ -21,17 +21,19 @@ export function scrapeCacheKey(
   courseCode: string,
   year: number,
   semester: string,
-  delivery: string
+  delivery: string,
+  university: string = "uq"
 ): string {
-  return `scrape:${courseCode}:${year}:${normalizeSemester(semester)}:${delivery}`;
+  return `scrape:${university}:${courseCode}:${year}:${normalizeSemester(semester)}:${delivery}`;
 }
 
 export function deliveryCacheKey(
   courseCode: string,
   year: number,
-  semester: string
+  semester: string,
+  university: string = "uq"
 ): string {
-  return `delivery:${courseCode}:${year}:${normalizeSemester(semester)}`;
+  return `delivery:${university}:${courseCode}:${year}:${normalizeSemester(semester)}`;
 }
 
 export async function getCached<T>(key: string): Promise<T | null> {
@@ -177,15 +179,32 @@ export async function getRecentDeliveryErrors(): Promise<string[]> {
 
 const FAILED_SCRAPES_SET = "failed-scrapes:v1";
 
-/** Parse a scrape cache key into courseCode and optional semester. Returns null if key format is invalid. */
+/** Parse a scrape cache key into university, courseCode and optional semester. Returns null if key format is invalid. */
 export function parseScrapeCacheKey(
   key: string
-): { courseCode: string; year?: number; semester?: string; delivery?: string } | null {
+): { university?: string; courseCode: string; year?: number; semester?: string; delivery?: string } | null {
   if (!key.startsWith("scrape:")) return null;
   const parts = key.split(":");
-  if (parts.length === 2) {
-    return { courseCode: parts[1] };
+  
+  // New format: scrape:university:courseCode:year:semester:delivery
+  if (parts.length >= 6) {
+    const university = parts[1];
+    const courseCode = parts[2];
+    const year = parseInt(parts[3], 10);
+    if (Number.isNaN(year)) return null;
+    const semesterNorm = parts[4];
+    const delivery = parts[5];
+    const semester = semesterNorm.replace(/_/g, " ");
+    return {
+      university,
+      courseCode,
+      year,
+      semester,
+      delivery,
+    };
   }
+  
+  // Legacy format: scrape:courseCode:year:semester:delivery (assume uq)
   if (parts.length >= 5) {
     const year = parseInt(parts[2], 10);
     if (Number.isNaN(year)) return null;
@@ -193,12 +212,22 @@ export function parseScrapeCacheKey(
     const delivery = parts[4];
     const semester = semesterNorm.replace(/_/g, " ");
     return {
+      university: "uq",
       courseCode: parts[1],
       year,
       semester,
       delivery,
     };
   }
+  
+  // Simple format: scrape:courseCode or scrape:university:courseCode
+  if (parts.length === 3) {
+    return { university: parts[1], courseCode: parts[2] };
+  }
+  if (parts.length === 2) {
+    return { university: "uq", courseCode: parts[1] };
+  }
+  
   return null;
 }
 

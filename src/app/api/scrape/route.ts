@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchCourseAssessment } from "@/lib/uq-scraper";
+import { fetchQUTCourseAssessment } from "@/lib/qut-scraper";
 import {
     parseSemesterType,
     parseDeliveryMode,
@@ -18,10 +19,25 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const SUPPORTED_UNIVERSITIES = ["uq", "qut"] as const;
+type SupportedUniversity = (typeof SUPPORTED_UNIVERSITIES)[number];
+
+function isSupportedUniversity(value: string): value is SupportedUniversity {
+    return SUPPORTED_UNIVERSITIES.includes(value as SupportedUniversity);
+}
+
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const courseCode =
         searchParams.get("courseCode") ?? searchParams.get("code");
+    const universityParam = searchParams.get("university")?.toLowerCase() ?? "uq";
+
+    if (!isSupportedUniversity(universityParam)) {
+        return NextResponse.json(
+            { error: `Unsupported university: ${universityParam}. Supported: ${SUPPORTED_UNIVERSITIES.join(", ")}` },
+            { status: 400 }
+        );
+    }
 
     if (!courseCode?.trim()) {
         return NextResponse.json(
@@ -59,9 +75,10 @@ export async function GET(request: NextRequest) {
               trimmedCode,
               semester.year,
               semester.semester,
-              semester.delivery
+              semester.delivery,
+              universityParam
           )
-        : `scrape:${trimmedCode}`;
+        : `scrape:${universityParam}:${trimmedCode}`;
 
     const cacheControl = "public, max-age=31536000, immutable"; // 1 year; data keyed by course+semester
 
@@ -89,7 +106,13 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const data = await fetchCourseAssessment(trimmedCode, semester);
+        // Call the appropriate scraper based on university
+        let data;
+        if (universityParam === "qut") {
+            data = await fetchQUTCourseAssessment(trimmedCode, semester);
+        } else {
+            data = await fetchCourseAssessment(trimmedCode, semester);
+        }
         await setCached(cacheKey, data);
         await incrAnalytics("scrape:misses");
         return NextResponse.json(data, {

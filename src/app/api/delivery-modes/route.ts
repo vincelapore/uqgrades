@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAvailableDeliveryModes } from "@/lib/delivery-modes";
+import { fetchQUTDeliveryModes } from "@/lib/qut-scraper";
 import { parseSemesterType } from "@/lib/semester";
 import {
     getCached,
@@ -11,11 +12,26 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const SUPPORTED_UNIVERSITIES = ["uq", "qut"] as const;
+type SupportedUniversity = (typeof SUPPORTED_UNIVERSITIES)[number];
+
+function isSupportedUniversity(value: string): value is SupportedUniversity {
+    return SUPPORTED_UNIVERSITIES.includes(value as SupportedUniversity);
+}
+
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const courseCode = searchParams.get("courseCode")?.trim()?.toUpperCase();
     const yearParam = searchParams.get("year");
     const semesterType = parseSemesterType(searchParams.get("semester"));
+    const universityParam = searchParams.get("university")?.toLowerCase() ?? "uq";
+
+    if (!isSupportedUniversity(universityParam)) {
+        return NextResponse.json(
+            { error: `Unsupported university: ${universityParam}. Supported: ${SUPPORTED_UNIVERSITIES.join(", ")}` },
+            { status: 400 }
+        );
+    }
 
     if (!courseCode || !courseCode.length || courseCode.length > 20) {
         return NextResponse.json(
@@ -41,7 +57,7 @@ export async function GET(request: NextRequest) {
     const cacheControl = "public, max-age=31536000, immutable"; // 1 year; keyed by course+year+semester
 
     try {
-        const cacheKey = deliveryCacheKey(courseCode, year, semesterType);
+        const cacheKey = deliveryCacheKey(courseCode, year, semesterType, universityParam);
         const cached = await getCached<{
             modes: Awaited<ReturnType<typeof fetchAvailableDeliveryModes>>;
         }>(cacheKey);
@@ -53,11 +69,13 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        const modes = await fetchAvailableDeliveryModes(
-            courseCode,
-            year,
-            semesterType
-        );
+        // Call the appropriate delivery modes function based on university
+        let modes;
+        if (universityParam === "qut") {
+            modes = await fetchQUTDeliveryModes(courseCode, year, semesterType);
+        } else {
+            modes = await fetchAvailableDeliveryModes(courseCode, year, semesterType);
+        }
 
         if (modes.length === 0) {
             return NextResponse.json(
@@ -82,7 +100,7 @@ export async function GET(request: NextRequest) {
                 : "Unknown error fetching delivery modes.";
         console.error("[API] Delivery modes error:", message, err);
         await incrAnalytics("delivery:errors");
-        const label = `${courseCode} ${year} ${semesterType}`;
+        const label = `${universityParam}:${courseCode} ${year} ${semesterType}`;
         await pushRecentDeliveryError(label);
         return NextResponse.json({ error: message }, { status: 500 });
     }

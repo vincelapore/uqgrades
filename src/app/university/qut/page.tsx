@@ -25,7 +25,7 @@ import {
     type AppState,
     type CourseState
 } from "@/lib/state";
-import type { CourseAssessment } from "@/lib/uq-scraper";
+import type { CourseAssessment } from "@/lib/qut-scraper";
 import {
     getCurrentSemester,
     getSelectableYears,
@@ -146,7 +146,7 @@ function HomeContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when popup/events change, not on selection toggle
     }, [calendarPopup, calendarPopupEvents]);
 
-    const STORAGE_KEY = "uqgrades-state";
+    const STORAGE_KEY = "qutgrades-state";
 
     // Hydrate on first load: shared link (URL) overrides, otherwise use localStorage
     useEffect(() => {
@@ -243,7 +243,8 @@ function HomeContent() {
                 const params = new URLSearchParams({
                     courseCode: code,
                     year: effectiveSemester.year.toString(),
-                    semester: effectiveSemester.semester
+                    semester: effectiveSemester.semester,
+                    university: "qut"
                 });
                 const res = await fetch(
                     `/api/delivery-modes?${params.toString()}`
@@ -252,7 +253,7 @@ function HomeContent() {
                     const body = await res.json().catch(() => ({}));
                     throw new Error(
                         body.error ||
-                            `Failed to find delivery modes for ${code}`
+                            `Failed to find unit ${code}`
                     );
                 }
                 const data = await res.json();
@@ -267,7 +268,7 @@ function HomeContent() {
                 setError(
                     e instanceof Error
                         ? e.message
-                        : "Failed to find delivery modes."
+                        : "Failed to find unit."
                 );
             } finally {
                 setLoadingDeliveryModes(false);
@@ -287,14 +288,15 @@ function HomeContent() {
                     courseCode: pendingCourse.courseCode,
                     year: pendingCourse.year.toString(),
                     semester: pendingCourse.semester,
-                    delivery: deliveryMode.delivery
+                    delivery: deliveryMode.delivery,
+                    university: "qut"
                 });
                 const res = await fetch(`/api/scrape?${params.toString()}`);
                 if (!res.ok) {
                     const body = await res.json().catch(() => ({}));
                     throw new Error(
                         body.error ||
-                            `Failed to load course ${pendingCourse.courseCode}`
+                            `Failed to load unit ${pendingCourse.courseCode}`
                     );
                 }
                 const course = (await res.json()) as CourseAssessment;
@@ -318,7 +320,7 @@ function HomeContent() {
                 setPendingCourse(null);
             } catch (e) {
                 setError(
-                    e instanceof Error ? e.message : "Failed to load course."
+                    e instanceof Error ? e.message : "Failed to load unit."
                 );
             } finally {
                 setLoadingCourse(false);
@@ -387,8 +389,8 @@ function HomeContent() {
         try {
             const encoded = encodeState(stateRef.current);
             const url = encoded
-                ? `${window.location.origin}/university/uq?data=${encoded}`
-                : window.location.origin + "/university/uq";
+                ? `${window.location.origin}/university/qut?data=${encoded}`
+                : window.location.origin + "/university/qut";
             await navigator.clipboard.writeText(url);
             setLinkCopied(true);
             setTimeout(() => setLinkCopied(false), 2000);
@@ -506,10 +508,10 @@ function HomeContent() {
                 <header className='flex flex-col gap-5 border-b border-slate-800/50 pb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
                     <div className='relative min-w-0'>
                         <h1 className='text-2xl font-bold tracking-tight text-slate-50 sm:text-4xl'>
-                            UQ Grades
+                            QUT Grades
                         </h1>
                         <p className='mt-1 text-sm text-slate-400 max-w-md'>
-                            Track your sem progress, calculate grades, and see
+                            Track your semester progress, calculate grades, and see
                             what you need to hit that 7 (or 4).{" "}
                             <button
                                 type='button'
@@ -568,17 +570,15 @@ function HomeContent() {
                                         <div className='space-y-3 text-sm text-slate-200'>
                                             <div>
                                                 <p className='font-semibold text-slate-100'>
-                                                    1. Add a course
+                                                    1. Add a unit
                                                 </p>
                                                 <p className='mt-1 text-slate-300'>
                                                     Choose semester and year,
-                                                    enter the course code (e.g.{" "}
+                                                    enter the unit code (e.g.{" "}
                                                     <span className='font-mono'>
-                                                        CSSE3100
+                                                        IFN666
                                                     </span>
-                                                    ), click Find, then pick the
-                                                    delivery (e.g. Internal,
-                                                    External).
+                                                    ), and click Find.
                                                 </p>
                                             </div>
                                             <div>
@@ -798,7 +798,7 @@ function HomeContent() {
                                                 );
                                             }
                                         }}
-                                        placeholder='Course code (e.g. CSSE3100)'
+                                        placeholder='Unit code (e.g. IFN666)'
                                         className='min-w-0 flex-1 basis-0 rounded-lg border border-slate-700/50 bg-slate-950/50 px-4 py-2.5 text-sm font-medium outline-none backdrop-blur-sm placeholder:text-slate-500 transition-all focus:border-sky-500/50 focus:bg-slate-900/50 focus:ring-2 focus:ring-sky-500/20 sm:basis-auto'
                                     />
                                     <button
@@ -930,7 +930,7 @@ function HomeContent() {
                             </div>
                         ) : (
                             <div className='flex h-full items-center text-sm text-slate-500'>
-                                Add a course to get started
+                                Add a unit to get started
                             </div>
                         )}
                     </div>
@@ -1514,16 +1514,16 @@ function HomeContent() {
 
                 <footer className='mt-12 border-t border-slate-800 pt-6 text-center'>
                     <p className='text-xs text-slate-500 mb-3'>
-                        Not affiliated with UQ. All data is scraped from UQ
-                        course profiles. Please verify information on the
-                        official UQ website. This tool is for convenience only
-                        and may contain errors. UQ Grades is not responsible for
+                        Not affiliated with QUT. All data is scraped from QUT
+                        unit outlines. Please verify information on the
+                        official QUT website. This tool is for convenience only
+                        and may contain errors. QUT Grades is not responsible for
                         your grades, missed hurdles and deadlines, or that
                         Netflix binge two days before the final.
                     </p>
                     <p className='text-xs text-slate-500'>
                         <a
-                            href='mailto:vincemlapore@gmail.com?subject=UQ%20Grades%20(uqgrades.com)'
+                            href='mailto:vincemlapore@gmail.com?subject=QUT%20Grades%20(grademate.com)'
                             className='text-slate-400 hover:text-slate-300 underline underline-offset-2'
                         >
                             Report bugs, compliments, or feature ideas
