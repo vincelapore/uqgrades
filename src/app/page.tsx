@@ -9,15 +9,17 @@ const universities = [
         color: "from-purple-500/20 to-purple-600/10",
         borderColor: "border-purple-500/30 hover:border-purple-400/50",
         textColor: "text-purple-300",
+        comingSoon: false,
     },
     {
         id: "qut",
         name: "Queensland University of Technology",
         shortName: "QUT",
         location: "Brisbane, Australia",
-        color: "from-blue-500/20 to-blue-600/10",
-        borderColor: "border-blue-500/30 hover:border-blue-400/50",
-        textColor: "text-blue-300",
+        color: "from-slate-500/10 to-slate-600/5",
+        borderColor: "border-slate-700/30",
+        textColor: "text-slate-500",
+        comingSoon: true,
     },
 ];
 
@@ -40,44 +42,70 @@ export default function Home() {
                         Select your university
                     </h2>
                     <div className='grid gap-4 sm:grid-cols-2'>
-                        {universities.map((uni) => (
-                            <Link
-                                key={uni.id}
-                                href={`/university/${uni.id}`}
-                                className={`group relative overflow-hidden rounded-xl border bg-gradient-to-br ${uni.color} ${uni.borderColor} p-6 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20`}
-                            >
-                                <div className='relative z-10'>
-                                    <div className='flex items-center gap-3'>
-                                        <span
-                                            className={`text-2xl font-bold ${uni.textColor}`}
-                                        >
-                                            {uni.shortName}
-                                        </span>
+                        {universities.map((uni) =>
+                            uni.comingSoon ? (
+                                <div
+                                    key={uni.id}
+                                    className={`group relative cursor-not-allowed overflow-hidden rounded-xl border bg-gradient-to-br ${uni.color} ${uni.borderColor} p-6 opacity-60`}
+                                >
+                                    <div className='relative z-10'>
+                                        <div className='flex items-center gap-3'>
+                                            <span
+                                                className={`text-2xl font-bold ${uni.textColor}`}
+                                            >
+                                                {uni.shortName}
+                                            </span>
+                                            <span className='rounded-full bg-slate-700/50 px-2 py-0.5 text-xs font-medium text-slate-400'>
+                                                Coming Soon
+                                            </span>
+                                        </div>
+                                        <p className='mt-2 font-medium text-slate-400'>
+                                            {uni.name}
+                                        </p>
+                                        <p className='mt-1 text-sm text-slate-500'>
+                                            {uni.location}
+                                        </p>
                                     </div>
-                                    <p className='mt-2 font-medium text-slate-200'>
-                                        {uni.name}
-                                    </p>
-                                    <p className='mt-1 text-sm text-slate-400'>
-                                        {uni.location}
-                                    </p>
                                 </div>
-                                <div className='absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 transition-transform group-hover:translate-x-1 group-hover:text-slate-500'>
-                                    <svg
-                                        className='h-6 w-6'
-                                        fill='none'
-                                        stroke='currentColor'
-                                        viewBox='0 0 24 24'
-                                    >
-                                        <path
-                                            strokeLinecap='round'
-                                            strokeLinejoin='round'
-                                            strokeWidth={2}
-                                            d='M9 5l7 7-7 7'
-                                        />
-                                    </svg>
-                                </div>
-                            </Link>
-                        ))}
+                            ) : (
+                                <Link
+                                    key={uni.id}
+                                    href={`/university/${uni.id}`}
+                                    className={`group relative overflow-hidden rounded-xl border bg-gradient-to-br ${uni.color} ${uni.borderColor} p-6 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20`}
+                                >
+                                    <div className='relative z-10'>
+                                        <div className='flex items-center gap-3'>
+                                            <span
+                                                className={`text-2xl font-bold ${uni.textColor}`}
+                                            >
+                                                {uni.shortName}
+                                            </span>
+                                        </div>
+                                        <p className='mt-2 font-medium text-slate-200'>
+                                            {uni.name}
+                                        </p>
+                                        <p className='mt-1 text-sm text-slate-400'>
+                                            {uni.location}
+                                        </p>
+                                    </div>
+                                    <div className='absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 transition-transform group-hover:translate-x-1 group-hover:text-slate-500'>
+                                        <svg
+                                            className='h-6 w-6'
+                                            fill='none'
+                                            stroke='currentColor'
+                                            viewBox='0 0 24 24'
+                                        >
+                                            <path
+                                                strokeLinecap='round'
+                                                strokeLinejoin='round'
+                                                strokeWidth={2}
+                                                d='M9 5l7 7-7 7'
+                                            />
+                                        </svg>
+                                    </div>
+                                </Link>
+                            )
+                        )}
 
                         <div className='flex items-center justify-center rounded-xl border border-dashed border-slate-700/50 bg-slate-900/20 p-6 text-center'>
                             <p className='text-sm text-slate-500'>
