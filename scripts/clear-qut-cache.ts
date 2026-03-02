@@ -30,21 +30,21 @@ async function clearQUTCache() {
   const client = new Redis({ url, token });
 
   // Find all QUT-related cache keys using SCAN
-  let cursor = 0;
+  let cursor: string = "0";
   const keysToDelete: string[] = [];
 
   do {
     const result = await client.scan(cursor, { match: "scrape:qut:*", count: 100 });
-    cursor = result[0];
+    cursor = String(result[0]);
     keysToDelete.push(...result[1]);
-  } while (cursor !== 0);
+  } while (cursor !== "0");
 
-  cursor = 0;
+  cursor = "0";
   do {
     const result = await client.scan(cursor, { match: "delivery:qut:*", count: 100 });
-    cursor = result[0];
+    cursor = String(result[0]);
     keysToDelete.push(...result[1]);
-  } while (cursor !== 0);
+  } while (cursor !== "0");
 
   if (keysToDelete.length === 0) {
     console.log("No QUT cache keys found");
